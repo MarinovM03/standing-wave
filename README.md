@@ -34,6 +34,23 @@ The browser suite builds the production bundle and starts its own preview server
 
 The production output is `dist/`, suitable for static hosting.
 
+## Code structure
+
+The application uses TypeScript modules with separate responsibilities:
+
+| Location | Responsibility |
+| --- | --- |
+| `src/main.ts` | Own experiment state, route user actions, and coordinate the interface, scene, and audio |
+| `src/ui/template.ts` | Static page markup, icons, and explanatory copy |
+| `src/ui/view.ts` | Render readings and control states through cached DOM references |
+| `src/acoustics.ts` | Pure calculations for room modes, pressure, wavelength, and relative level |
+| `src/audio.ts` | Manage the optional tone, gain transitions, and audio lifecycle |
+| `src/scene.ts` | Own the renderer, camera, pointer interaction, and scene lifecycle |
+| `src/scene/` | Build the room, pressure field, listener marker, and projected labels |
+| `src/styles/` | Format and organize styles by responsibility; `src/style.css` preserves their cascade order |
+
+The interface renders existing state without owning the acoustic calculations. Scene objects share one renderer and are disposed through `RoomScene`. Keep those boundaries when making changes; a file's responsibility matters more than a fixed line-count limit.
+
 ## Try it
 
 1. Start with the length mode, about **28.6 Hz**. Its **12 m wavelength** is twice the **6 m room length**: half of one wave fits between the end walls.
