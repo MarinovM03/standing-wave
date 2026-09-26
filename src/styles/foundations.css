@@ -1,0 +1,109 @@
+/* Local fonts, design tokens, browser resets, and shared focus behavior. */
+
+@font-face {
+  font-family: 'DM Sans';
+  src: url('/fonts/dm-sans-variable.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 100 1000;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Manrope';
+  src: url('/fonts/manrope-variable.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+}
+
+:root {
+  font-family: 'DM Sans',sans-serif;
+  color: #e7eceb;
+  background: #080f12;
+  font-synthesis: none;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  --amber: #edb578;
+  --mint: #9fe0ce;
+  --muted: #7e9297;
+  --line: rgba(164,191,191,.13);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+  cursor: pointer;
+}
+
+button {
+  border: 0;
+  background: none;
+}
+
+button:disabled {
+  cursor: wait;
+}
+
+button,
+a,
+input {
+  outline-offset: 5px;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--mint);
+}
+
+button {
+  transition: background .2s,color .2s,border-color .2s,box-shadow .2s;
+}
+
+button:hover {
+  color: #fff;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button svg {
+  width: 19px;
+  height: 19px;
+  flex-shrink: 0;
+}
+
+kbd {
+  font: 9px 'DM Sans',sans-serif;
+  font-weight: 500;
+  letter-spacing: .04em;
+  border: 1px solid #344044;
+  border-radius: 3px;
+  padding: 3px 5px;
+  color: #adbcbe;
+  background: #ffffff03;
+}
+
+button:active {
+  transform: translateY(1px);
+}
