@@ -1,4 +1,3 @@
-import './style.css';
 import { RoomScene } from './scene';
 import { ToneAudio } from './audio';
 import { ROOM, getNearestMode, modeForAxis, sampleField, relativeDb, wavelength } from './acoustics';

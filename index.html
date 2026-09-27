@@ -4,12 +4,33 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#080f12" />
-    <meta name="description" content="Move through the invisible architecture of bass. An interactive 3D room mode explainer." />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Standing Wave — The room is an instrument.</title>
+    <title>Standing Wave — Room Modes &amp; Bass Hotspots in 3D</title>
+    <meta name="description" content="Explore standing waves and simplified room modes in 3D. Scrub frequency and move a listener through bass hotspots and dead spots." />
+    <meta name="robots" content="index, follow" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Standing Wave" />
+    <meta property="og:title" content="Standing Wave — Same speaker, different bass" />
+    <meta property="og:description" content="Explore standing waves and simplified room modes in 3D. Scrub frequency and move a listener through bass hotspots and dead spots." />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Standing Wave: a rectangular room with bright pressure peaks at opposite ends and a dark, quiet band in the middle." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Standing Wave — Same speaker, different bass" />
+    <meta name="twitter:description" content="Explore standing waves and simplified room modes in 3D. Scrub frequency and move a listener through bass hotspots and dead spots." />
+    <meta name="twitter:image:alt" content="Standing Wave: a rectangular room with bright pressure peaks at opposite ends and a dark, quiet band in the middle." />
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
+    <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <main id="static-explainer">
+        <h1>Standing Wave</h1>
+        <p>The bass isn't louder in the corner because the speaker is. The room is stacking the wave.</p>
+        <p>Compare <strong>Speaker only</strong> with <strong>Room interference</strong>. Scrub frequency and move a listener through bass hotspots and dead spots in a simplified rectangular room.</p>
+        <noscript><p>The interactive 3D room needs JavaScript and WebGL. A pressure node is a quiet plane; an antinode is a pressure peak. This lab isolates one room mode at a time.</p></noscript>
+      </main>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

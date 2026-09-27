@@ -37,6 +37,19 @@ body {
   margin: 0;
 }
 
+#static-explainer {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 12svh max(24px, env(safe-area-inset-left, 0px));
+  line-height: 1.7;
+}
+
+#static-explainer h1 {
+  color: var(--amber);
+  font-size: clamp(32px, 8vw, 56px);
+  line-height: 1.15;
+}
+
 button,
 input,
 a {
