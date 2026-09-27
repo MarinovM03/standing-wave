@@ -30,11 +30,21 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The browser suite builds the production bundle and starts its own preview server at `http://127.0.0.1:5179`. Desktop Chromium checks tuning, quiet spots, the comparison, keyboard controls, mic dragging, camera movement, accessible pressure feedback, and agreement between the meter and audio gain. Separate Pixel 7 portrait and landscape projects use mobile viewports and touch input. These are browser emulation, not tests on physical phones. Optionally set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to the absolute path of an existing compatible Chrome/Chromium executable.
+The browser suite builds the production bundle and starts its own preview server at `http://127.0.0.1:5179/standing-wave/`. Desktop Chromium checks tuning, quiet spots, the comparison, keyboard controls, mic dragging, camera movement, accessible pressure feedback, and agreement between the meter and audio gain. It also checks short windows, static metadata, and subpath asset responses. Separate Pixel 7 portrait and landscape projects use mobile viewports and touch input, including live rotation and the persistent sound control. These are browser emulation, not tests on physical phones. Optionally set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to the absolute path of an existing compatible Chrome/Chromium executable.
 
 Pushes and pull requests run the build, acoustic tests, and all Chromium browser projects in GitHub Actions on Node 22. Failed browser runs retain their Playwright report, traces, and screenshots as an artifact.
 
-The production output is `dist/`, suitable for static hosting.
+## Deploy under a subpath
+
+Live/deploy URL: `https://<domain>/standing-wave/` — the public domain has not been selected yet.
+
+Vite defaults to `BASE_PATH=/standing-wave/`. Development, production assets, and Playwright all use that prefix; preview it with `npm run preview` at `http://127.0.0.1:4173/standing-wave/`. An alternative root-relative `BASE_PATH` is supported and its trailing slash is normalized. Vite rewrites the bundled CSS, fonts, scripts, and favicon under the configured base.
+
+For **Cloudflare Pages**, use build command `npm run build` and output directory `dist`. In the project's **build environment variables**, set `SITE_URL` to the eventual public origin, such as `https://<domain>`, with no path, query, or fragment. Keep `BASE_PATH=/standing-wave/` unless the public path changes, then rebuild. For local configuration, copy `.env.example` to `.env.local`.
+
+The build emits a Pages `_redirects` file that adds the trailing slash and proxies requests under the configured prefix to the corresponding files in `dist`. This matters because Vite rewrites asset URLs but does not nest the output inside a `standing-wave` directory. Other static hosts must mount `dist` at the configured prefix. These rules use [Cloudflare Pages prefix proxying](https://developers.cloudflare.com/pages/configuration/redirects/#proxying); this repo does not deploy or change any host configuration automatically.
+
+When `SITE_URL` is empty, canonical and social URLs remain relative to the site root; no public domain is invented. Set it at deployment to publish absolute canonical, Open Graph, Twitter, and structured-data URLs. The sharing image is the checked-in `public/og.png` (1200 × 630), with editable vector artwork in `public/og.svg`. The static document also contains an explanation for crawlers and visitors without JavaScript. No ratings, measurements, host-wide robots policy, or speculative sitemap are published.
 
 ## Code structure
 
@@ -80,7 +90,7 @@ The interface renders existing state without owning the acoustic calculations. S
 | `R` | Reset the experiment; retain your audio opt-in |
 | `/` | Hide or show the interface |
 | `Escape` | Restore the interface or close the explainer |
-| Audio button | Enable or mute the tone |
+| Header Sound off / Sound on button | Enable or mute the tone |
 
 Keyboard shortcuts are ignored while typing in a number field. Native sliders keep their arrow-key adjustments; camera, reset, mode, and interface shortcuts still work while a slider has focus.
 
@@ -90,13 +100,14 @@ The live scene keeps one short teaching line beside the comparison; the longer e
 
 ## Mobile checks
 
-Open the deployed lab on the phone, or run `npx vite --host 0.0.0.0` and open the computer's LAN address at port 5173 from a phone on the same Wi-Fi. `localhost` on the phone points to the phone itself.
+Open the deployed lab on the phone, or run `npx vite --host 0.0.0.0` and open `http://<computer-LAN-address>:5173/standing-wave/` from a phone on the same Wi-Fi. `localhost` on the phone points to the phone itself.
 
 - **Portrait and landscape:** rotate in both directions. Check that the room stays visible, the page has no sideways overflow, and notch/home-indicator areas do not cover controls. Scrub 25–200 Hz and tap all three mode buttons; the field and readings should respond together.
 - **Mic versus orbit:** drag from the mint mic, including just beside its centre. Only the mic should move. Lift your finger, then drag empty space to orbit and pinch to zoom. Repeat after rotating and zooming out; a second finger must not steal an active mic drag.
 - **Pressure and comparison:** use **Find a node** and **Try a corner**, then drag between them. Check the meter and mic glow change together. Switch **Speaker only** / **Room interference** and check the legend and pattern change with it.
-- **Sound:** the page starts silent. Tap **Enable sound**, compare a node with a corner, and tap the sound button again to mute. Low bass may be inaudible on phone speakers; headphones make this check clearer at a comfortable volume.
-- **Background and return:** enable sound, switch apps or browser tabs, then return. Sound must stop while hidden and remain muted on return until **Enable sound** is tapped again. Mute-on-hide is intentional; the browser test simulates the visibility event, so this OS-level check still needs a phone.
+- **Sound:** the page starts silent with **Sound off** in the sticky header. Confirm the button stays reachable while scrolling, tap it to enable sound, compare a node with a corner, then tap **Sound on** to mute. **Starting sound…** indicates a pending browser request. Low bass may be inaudible on phone speakers; headphones make this check clearer at a comfortable volume.
+- **Background and return:** enable sound, switch apps or browser tabs, then return. Sound must stop while hidden and remain muted on return, showing **Sound off** until tapped again. Mute-on-hide is intentional; the browser test simulates the visibility event, so this OS-level check still needs a phone.
+- **Short windows:** open DevTools below the scene or reduce a desktop window to 1440 × 420 / 1024 × 500; also try phone landscape with browser chrome visible. Adjust **Ear height**, **Find a node**, **Try a corner**, and the scene tools. Controls must not overlap; scroll the listener panel when its full desktop layout needs more space.
 - **Safari on iPhone:** repeat every check above in Safari, including the first sound gesture, rotation, pinch, app switching, and muting. With VoiceOver, navigate the comparison, mode buttons, listener presets, and pressure legend; check that mode/band changes are announced. WebKit is not part of CI, so Chromium results do not certify Safari. Repeat the touch/performance checks on a mid-range Android phone; TalkBack should expose the same controls and pressure meaning.
 
 Browser emulation cannot establish physical-device frame rate, thermal behavior, notch handling, or screen-reader output. Those checks remain part of release verification.
