@@ -13,6 +13,8 @@ export const experimentMarkup = `
     </header>
     <main class="stage" aria-label="Interactive room mode experiment">
       <div id="scene"></div>
+      <p id="room-instructions" class="sr-only">Use arrow keys to move the listener, or hold Shift for larger steps. W, A, S, D move the camera. C toggles cinematic orbit; R resets. Tab moves to the next control. On touch screens, drag the mic to move it, drag empty space to orbit, and pinch to zoom.</p>
+      <p id="pressure-summary" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
       <div class="stage-vignette" aria-hidden="true"></div>
       <section class="intro interface">
         <p class="eyebrow"><span class="tiny-line"></span> THE INVISIBLE ARCHITECTURE OF SOUND</p>
@@ -35,7 +37,7 @@ export const experimentMarkup = `
       <aside class="listener-card interface" aria-label="Listener measurements" data-pressure="hot">
         <div class="card-label"><span class="mint-dot"></span> THE LISTENER <span class="live-label">LIVE</span></div>
         <div class="level-readout">
-          <output id="level-db">−1.5</output>
+          <output id="level-db" aria-live="off">−1.5</output>
           <span>dB<span>relative</span></span>
         </div>
         <div class="level-meter" role="meter" aria-label="Relative pressure level" aria-valuemin="-40" aria-valuemax="0" aria-valuenow="-1.5">
@@ -48,10 +50,10 @@ export const experimentMarkup = `
         </div>
         <div class="position-row">
           <span>POSITION</span>
-          <output id="position-readout"></output>
+          <output id="position-readout" aria-live="off"></output>
         </div>
         <p class="drag-hint"><span>↔</span><span id="drag-status">DRAG MIC TO MOVE</span></p>
-        <label class="height-control" for="height">EAR HEIGHT <output id="height-value">1.20 m</output></label>
+        <label class="height-control" for="height">EAR HEIGHT <output id="height-value" aria-live="off">1.20 m</output></label>
         <input id="height" type="range" min="0.08" max="2.72" step="0.01" value="1.2" aria-label="Listener height in metres" />
         <div class="listener-presets">
           <button id="quiet-button">Find a node <span>↘</span></button>
@@ -59,8 +61,9 @@ export const experimentMarkup = `
         </div>
       </aside>
       <div class="scene-bottom interface">
-        <div class="field-key">
-          <span class="eyebrow">PRESSURE AMPLITUDE</span>
+        <div class="field-key" role="group" aria-labelledby="pressure-legend-title" aria-describedby="pressure-legend-description pressure-summary">
+          <span id="pressure-legend-title" class="eyebrow">PRESSURE AMPLITUDE</span>
+          <p id="pressure-legend-description" class="sr-only">Nodes are quiet planes; antinodes are pressure peaks. A quiet reading can also result from tuning away from a mode.</p>
           <div>
             <i class="key-node"></i>
             <span><span id="field-low-label">Node</span> <small>quiet</small></span>
@@ -92,7 +95,7 @@ export const experimentMarkup = `
           </label>
           <div class="wavelength">
             <span>WAVELENGTH</span>
-            <output id="wavelength">12.00</output>
+            <output id="wavelength" aria-live="off">12.00</output>
             <span class="unit">m</span>
             <svg viewBox="0 0 76 20" fill="none" aria-hidden="true"><path d="M1 10C13-5 25-5 38 10s25 15 37 0" stroke="currentColor" stroke-width="1.2"/></svg>
           </div>
@@ -218,4 +221,3 @@ export const experimentMarkup = `
     </p>
   </dialog>
 `;
-

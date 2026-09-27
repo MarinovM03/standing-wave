@@ -64,11 +64,15 @@ export function createExperimentView(root: HTMLElement) {
     comparison: element('comparison-caption'),
     fieldLow: element('field-low-label'),
     fieldHigh: element('field-high-label'),
+    fieldDescription: element('pressure-legend-description'),
+    pressureSummary: element('pressure-summary'),
     sound: element('sound-label'),
     drag: element('drag-status'),
     toast: element('toast'),
   };
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
+  let pressureTimer: ReturnType<typeof setTimeout> | undefined;
+  let pressureKey = '';
 
   function render(state: InterfaceState, readings: Readings, soundPending: boolean) {
     const { mode, amplitude, db, wavelength } = readings;
@@ -87,6 +91,7 @@ export function createExperimentView(root: HTMLElement) {
       : quiet ? 'QUIET SPOT' : amplitude > .72 ? 'PRESSURE PEAK' : 'BETWEEN PEAKS';
     display.levelStatus.classList.toggle('quiet', quiet);
     display.listenerCard.dataset.pressure = quiet ? 'quiet' : amplitude > .72 ? 'hot' : 'mid';
+    display.meter.setAttribute('aria-valuetext', `${db.toFixed(1)} decibels relative; ${display.levelStatus.textContent.toLowerCase()}`);
     display.listenerCard.style.setProperty('--amplitude', amplitude.toFixed(3));
     display.position.textContent = `${state.listener.x.toFixed(1)} / ${state.listener.z.toFixed(1)} / ${state.listener.y.toFixed(1)} m`;
     heightRange.value = String(state.listener.y);
@@ -114,6 +119,23 @@ export function createExperimentView(root: HTMLElement) {
     document.body.classList.toggle('belief-view', state.view === 'belief');
     display.fieldLow.textContent = state.view === 'belief' ? 'Far' : 'Node';
     display.fieldHigh.textContent = state.view === 'belief' ? 'Near' : 'Antinode';
+    const fieldDescription = state.view === 'belief'
+      ? 'Farther from the speaker is quieter; closer is louder. This view has no room interference.'
+      : 'Nodes are quiet planes; antinodes are pressure peaks. A quiet reading can also result from tuning away from a mode.';
+    if (display.fieldDescription.textContent !== fieldDescription) display.fieldDescription.textContent = fieldDescription;
+
+    const nextPressureKey = `${state.view}:${state.view === 'physics' ? mode.indices.join(',') : ''}:${display.listenerCard.dataset.pressure}`;
+    if (nextPressureKey !== pressureKey) {
+      pressureKey = nextPressureKey;
+      clearTimeout(pressureTimer);
+      const summary = state.view === 'belief'
+        ? `Speaker only. Level falls with distance. Listener: ${display.levelStatus.textContent.toLowerCase()}.`
+        : `Room interference. Nearest ${mode.axis} mode (${mode.indices.join(', ')}), ${mode.frequency.toFixed(1)} hertz. Listener: ${display.levelStatus.textContent.toLowerCase()}.`;
+      // Announce settled changes of meaning, not every sample during a drag or scrub.
+      pressureTimer = setTimeout(() => {
+        if (display.pressureSummary.textContent !== summary) display.pressureSummary.textContent = summary;
+      }, 180);
+    }
 
     controls.sound.setAttribute('aria-pressed', String(state.sound));
     controls.sound.disabled = soundPending;
@@ -152,6 +174,7 @@ export function createExperimentView(root: HTMLElement) {
 
   function dispose() {
     clearTimeout(toastTimer);
+    clearTimeout(pressureTimer);
     document.body.classList.remove('belief-view', 'ui-hidden', 'dragging-mic');
     root.replaceChildren();
   }
