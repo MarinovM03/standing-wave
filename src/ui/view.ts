@@ -140,7 +140,9 @@ export function createExperimentView(root: HTMLElement) {
     controls.sound.setAttribute('aria-pressed', String(state.sound));
     controls.sound.disabled = soundPending;
     controls.sound.setAttribute('aria-busy', String(soundPending));
-    display.sound.textContent = soundPending ? 'Starting sound…' : state.sound ? 'Sound on' : 'Enable sound';
+    display.sound.textContent = soundPending ? 'Starting sound…' : state.sound ? 'Sound on' : 'Sound off';
+    controls.sound.setAttribute('aria-label', soundPending ? 'Starting sound…' : state.sound ? 'Sound on. Mute sound' : 'Sound off. Enable sound');
+    controls.sound.title = soundPending ? 'Starting sound…' : state.sound ? 'Mute sound' : 'Enable sound';
     controls.nodes.setAttribute('aria-pressed', String(state.showNodes));
     controls.motion.setAttribute('aria-pressed', String(!state.animate));
     const motionAction = state.animate ? 'Pause field animation' : 'Play field animation';

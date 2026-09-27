@@ -8,6 +8,7 @@ export const experimentMarkup = `
       <span class="lab-title">SMALL EXPERIMENTS. INVISIBLE THINGS.</span>
       <div class="header-actions">
         <span class="edition"><i></i> LAB 001</span>
+        <button id="sound-button" type="button" aria-pressed="false" aria-label="Sound off. Enable sound">${soundIcon}<span id="sound-label">Sound off</span></button>
         <button class="text-button" id="how-button">How it works <span>↗</span></button>
       </div>
     </header>
@@ -138,7 +139,6 @@ export const experimentMarkup = `
         </div>
         <div class="mode-meta">
           <span>NEAREST AXIAL MODE <strong id="mode-name">Length · 28.6 Hz</strong></span>
-          <button id="sound-button" aria-pressed="false">${soundIcon}<span id="sound-label">Enable sound</span></button>
         </div>
       </div>
     </section>

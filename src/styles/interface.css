@@ -349,19 +349,34 @@ input[type=range]::-moz-range-thumb {
 #sound-button {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  font-size: 9px;
+  width: 112px;
+  min-height: 44px;
+  flex-shrink: 0;
+  font-size: 11px;
+  line-height: 1.2;
   color: #aebfb8;
-  padding: 0;
+  padding: 6px 10px;
+  border: 1px solid #78908842;
+  border-radius: 5px;
+  background: #18282b55;
+}
+
+#sound-label {
+  min-width: 0;
 }
 
 #sound-button svg {
   width: 13px;
   height: 13px;
+  flex-shrink: 0;
 }
 
 #sound-button[aria-pressed=true] {
   color: var(--mint);
+  border-color: #9fe0ce66;
+  background: #9fe0ce12;
 }
 
 .footer {
