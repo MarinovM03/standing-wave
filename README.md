@@ -30,7 +30,9 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The browser suite builds the production bundle and starts its own preview server at `http://127.0.0.1:5179`. It checks tuning, quiet spots, the comparison, keyboard controls after slider focus, actual mic dragging, camera movement, mobile touch scrubbing, and agreement between mic pressure feedback, relative level, and audio gain. Optionally set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to the absolute path of an existing compatible Chrome/Chromium executable.
+The browser suite builds the production bundle and starts its own preview server at `http://127.0.0.1:5179`. Desktop Chromium checks tuning, quiet spots, the comparison, keyboard controls, mic dragging, camera movement, accessible pressure feedback, and agreement between the meter and audio gain. Separate Pixel 7 portrait and landscape projects use mobile viewports and touch input. These are browser emulation, not tests on physical phones. Optionally set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to the absolute path of an existing compatible Chrome/Chromium executable.
+
+Pushes and pull requests run the build, acoustic tests, and all Chromium browser projects in GitHub Actions on Node 22. Failed browser runs retain their Playwright report, traces, and screenshots as an artifact.
 
 The production output is `dist/`, suitable for static hosting.
 
@@ -82,7 +84,22 @@ The interface renders existing state without owning the acoustic calculations. S
 
 Keyboard shortcuts are ignored while typing in a number field. Native sliders keep their arrow-key adjustments; camera, reset, mode, and interface shortcuts still work while a slider has focus.
 
+Tab to the room to use its keyboard controls, then Tab again to leave it. The canvas describes those controls for screen readers. The pressure legend explains both views in text, and a polite announcement follows changes of mode or listener pressure band without announcing every drag sample.
+
 The live scene keeps one short teaching line beside the comparison; the longer explanation lives in **How it works**. Amber marks the room's pressure pattern, while the source-only view uses a cool palette. The mic's glow and the listener meter both follow the same local pressure amplitude as the tone. A quiet reading can also result from detuning, so it does not by itself identify a node.
+
+## Mobile checks
+
+Open the deployed lab on the phone, or run `npx vite --host 0.0.0.0` and open the computer's LAN address at port 5173 from a phone on the same Wi-Fi. `localhost` on the phone points to the phone itself.
+
+- **Portrait and landscape:** rotate in both directions. Check that the room stays visible, the page has no sideways overflow, and notch/home-indicator areas do not cover controls. Scrub 25–200 Hz and tap all three mode buttons; the field and readings should respond together.
+- **Mic versus orbit:** drag from the mint mic, including just beside its centre. Only the mic should move. Lift your finger, then drag empty space to orbit and pinch to zoom. Repeat after rotating and zooming out; a second finger must not steal an active mic drag.
+- **Pressure and comparison:** use **Find a node** and **Try a corner**, then drag between them. Check the meter and mic glow change together. Switch **Speaker only** / **Room interference** and check the legend and pattern change with it.
+- **Sound:** the page starts silent. Tap **Enable sound**, compare a node with a corner, and tap the sound button again to mute. Low bass may be inaudible on phone speakers; headphones make this check clearer at a comfortable volume.
+- **Background and return:** enable sound, switch apps or browser tabs, then return. Sound must stop while hidden and remain muted on return until **Enable sound** is tapped again. Mute-on-hide is intentional; the browser test simulates the visibility event, so this OS-level check still needs a phone.
+- **Safari on iPhone:** repeat every check above in Safari, including the first sound gesture, rotation, pinch, app switching, and muting. With VoiceOver, navigate the comparison, mode buttons, listener presets, and pressure legend; check that mode/band changes are announced. WebKit is not part of CI, so Chromium results do not certify Safari. Repeat the touch/performance checks on a mid-range Android phone; TalkBack should expose the same controls and pressure meaning.
+
+Browser emulation cannot establish physical-device frame rate, thermal behavior, notch handling, or screen-reader output. Those checks remain part of release verification.
 
 ## What is real
 
