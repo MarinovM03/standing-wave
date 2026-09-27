@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('pressure legend explains both models and announces settled mode and band changes', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/');
+  await page.goto('./');
   const legend = page.getByRole('group', { name: 'PRESSURE AMPLITUDE' });
   const summary = page.locator('#pressure-summary');
   await expect(legend).toHaveAccessibleDescription(/Nodes are quiet planes; antinodes are pressure peaks/);
@@ -47,7 +47,7 @@ test('pressure legend explains both models and announces settled mode and band c
 });
 
 test('canvas is keyboard reachable, describes its controls and lets focus leave', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('./');
   const canvas = page.getByRole('application', { name: 'Interactive acoustic room' });
   await expect(canvas).toHaveAccessibleDescription(/Use arrow keys to move the listener/);
   for (let index = 0; index < 8; index++) {

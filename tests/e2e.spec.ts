@@ -24,7 +24,7 @@ test.beforeEach(async ({ page }) => {
       }
     };
   });
-  await page.goto('/');
+  await page.goto('./');
   await expect(page.locator('canvas')).toBeVisible();
   await expect(page.locator('.sw-scene-label--listener')).toBeVisible();
   await expect(page.locator('.webgl-fallback')).toHaveCount(0);
@@ -187,7 +187,11 @@ test('mic pressure cue, relative level and real audio gain stay in sync', async 
     return { state: probe.contexts.at(-1)?.state, frequency: probe.oscillators.at(-1)?.frequency.value ?? 0, gain: probe.gains.at(-1)?.gain.value ?? 0 };
   });
   expect(await page.evaluate(() => (window as Window & { __toneProbe: AudioProbe }).__toneProbe.contexts.length)).toBe(0);
+  await expect(page.locator('.masthead #sound-button')).toHaveCount(1);
+  await expect(page.locator('#sound-label')).toHaveText('Sound off');
   await page.locator('#sound-button').click();
+  await expect(page.locator('#sound-button')).toHaveAccessibleName('Sound on. Mute sound');
+  await expect(page.locator('#sound-label')).toHaveText('Sound on');
   await expect.poll(async () => (await audio()).state).toBe('running');
   await page.locator('#quiet-button').click();
   await expect(cue).toHaveAttribute('data-pressure', 'quiet');
@@ -207,6 +211,7 @@ test('mic pressure cue, relative level and real audio gain stay in sync', async 
   expect(await level(page)).toBeCloseTo(20 * Math.log10(pressure), 0);
   await page.evaluate(() => (window as Window & { __toneProbe: AudioProbe }).__toneProbe.contexts.at(-1)!.suspend());
   await expect(page.locator('#sound-button')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#sound-label')).toHaveText('Sound off');
   await expect.poll(async () => (await audio()).gain).toBe(0);
   await page.evaluate(() => (window as Window & { __toneProbe: AudioProbe }).__toneProbe.contexts.at(-1)!.resume());
   expect((await audio()).gain).toBe(0);
@@ -233,12 +238,14 @@ test('sound startup cannot overlap and failure paths leave the lab usable', asyn
   await expect(button).toBeDisabled();
   await expect(button).toHaveAttribute('aria-busy', 'true');
   await expect(page.locator('#sound-label')).toHaveText('Starting sound…');
+  await expect(button).toHaveAccessibleName('Starting sound…');
   // Dispatch bypasses disabled-button hit testing and exercises the handler's guard.
   await button.dispatchEvent('click');
   expect(await page.evaluate(() => (window as Window & { __toneProbe: AudioProbe }).__toneProbe.contexts.length)).toBe(1);
   await page.evaluate(() => (window as Window & { releaseAudioStart: () => void }).releaseAudioStart());
   await expect(button).toBeEnabled();
   await expect(button).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#sound-label')).toHaveText('Sound on');
   await button.click();
   await expect(button).toHaveAttribute('aria-pressed', 'false');
 
@@ -258,6 +265,8 @@ test('sound startup cannot overlap and failure paths leave the lab usable', asyn
     await button.click();
     await expect(button).toBeEnabled();
     await expect(button).toHaveAttribute('aria-pressed', 'false');
+    await expect(button).toHaveAccessibleName('Sound off. Enable sound');
+    await expect(page.locator('#sound-label')).toHaveText('Sound off');
     await expect(page.locator('#toast')).toContainText('Audio could not start');
     await page.locator('#frequency').fill('200');
     await expect(page.locator('#frequency-number')).toHaveValue('200.0');

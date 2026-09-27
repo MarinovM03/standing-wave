@@ -1,4 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
+import { loadEnv } from 'vite';
+
+const env = loadEnv('production', process.cwd(), ['BASE_PATH']);
+const basePath = `${(env.BASE_PATH?.trim() || '/standing-wave/').replace(/\/+$/, '')}/`;
+const baseURL = `http://127.0.0.1:5179${basePath}`;
 
 export default defineConfig({
   testDir: './tests',
@@ -10,7 +15,7 @@ export default defineConfig({
   expect: { timeout: 5_000 },
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: 'http://127.0.0.1:5179',
+    baseURL,
     browserName: 'chromium',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
@@ -21,7 +26,7 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop-chromium',
-      testMatch: /(?:e2e|accessibility)\.spec\.ts/,
+      testMatch: /(?:e2e|accessibility|shipping)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
     {
@@ -37,7 +42,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'node node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 5179 --strictPort',
-    url: 'http://127.0.0.1:5179',
+    url: baseURL,
     reuseExistingServer: false,
     timeout: 30_000,
   },

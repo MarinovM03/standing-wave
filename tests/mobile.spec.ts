@@ -43,7 +43,7 @@ test.beforeEach(async ({ page }, testInfo) => {
       }
     };
   });
-  await page.goto('/');
+  await page.goto('./');
   await expect(page.locator('canvas')).toBeVisible();
   await expect(page.locator('.sw-scene-label--listener')).toBeVisible();
   await expect(page.locator('.webgl-fallback')).toHaveCount(0);
@@ -142,9 +142,24 @@ async function audioState(page: Page) {
   });
 }
 
+async function expectSoundControlVisible(page: Page): Promise<void> {
+  const button = page.locator('#sound-button');
+  await expect(button).toHaveCount(1);
+  await expect(page.locator('.masthead #sound-button')).toHaveCount(1);
+  await expect(button, 'Sound stays available without scrolling back to the header').toBeInViewport({ ratio: 1 });
+  const box = await button.boundingBox();
+  expect(box!.width).toBeGreaterThanOrEqual(44);
+  expect(box!.height).toBeGreaterThanOrEqual(44);
+  expect(await button.evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    return document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)?.closest('#sound-button') === element;
+  }), 'The visible sound control is exposed to touch').toBe(true);
+}
+
 test('touch users can load, scrub, select every mode and compare sound models', async ({ page }) => {
   await expectRoomAndFrequencyInViewport(page);
   await expectTouchTargets(page);
+  await expectSoundControlVisible(page);
   await expect(page.locator('#frequency-number')).toHaveValue('28.6');
   await expect(page.locator('#wavelength')).toHaveText('12.00');
   const slider = page.locator('#frequency');
@@ -239,17 +254,28 @@ test('sound starts on a tap, follows pressure, and stays muted after hiding', as
   expect((await audioState(page)).contextCount).toBe(0);
   const button = page.locator('#sound-button');
   await expect(button).toHaveAttribute('aria-pressed', 'false');
+  await expect(button).toHaveAccessibleName('Sound off. Enable sound');
+  await expect(page.locator('#sound-label')).toHaveText('Sound off');
+  await expectSoundControlVisible(page);
   await page.locator('#peak-button').tap();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  expect(await page.evaluate(() => scrollY)).toBeGreaterThan(0);
+  await expectSoundControlVisible(page);
   await button.tap();
   await expect(button).toHaveAttribute('aria-pressed', 'true');
+  await expect(button).toHaveAccessibleName('Sound on. Mute sound');
+  await expect(page.locator('#sound-label')).toHaveText('Sound on');
   await expect.poll(async () => (await audioState(page)).state).toBe('running');
   await expect.poll(async () => (await audioState(page)).gain).toBeGreaterThan(0.08);
   await page.locator('#quiet-button').tap();
   await expect.poll(async () => (await audioState(page)).gain).toBeLessThan(0.0021);
   await page.locator('[data-axis="width"]').tap();
   await expect.poll(async () => (await audioState(page)).frequency).toBeCloseTo(42.9, 1);
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expectSoundControlVisible(page);
   await button.tap();
   await expect(button).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#sound-label')).toHaveText('Sound off');
   await expect.poll(async () => (await audioState(page)).state).toBe('suspended');
 
   await page.locator('#peak-button').tap();
@@ -264,6 +290,8 @@ test('sound starts on a tap, follows pressure, and stays muted after hiding', as
     document.dispatchEvent(new Event('visibilitychange'));
   });
   await expect(button).toHaveAttribute('aria-pressed', 'false');
+  await expect(button).toHaveAccessibleName('Sound off. Enable sound');
+  await expect(page.locator('#sound-label')).toHaveText('Sound off');
   await expect.poll(async () => (await audioState(page)).state).toBe('suspended');
   expect((await audioState(page)).gain).toBeLessThan(0.001);
   await page.evaluate(() => {
