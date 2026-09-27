@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import type { Position } from '../acoustics';
 import type { ProjectedLabel, SceneLabels } from './labels';
 
+const TOUCH_HIT_RADIUS = 24;
+
 /** The microphone's visual cue and hit area share one world-space marker. */
 export class ListenerMarker {
   private readonly listener = new THREE.Group();
@@ -18,6 +20,10 @@ export class ListenerMarker {
   private readonly hitTargets: THREE.Object3D[] = [];
   private readonly listenerLabel: ProjectedLabel;
   private readonly pointerHits: THREE.Intersection[] = [];
+  private readonly projectedHead = new THREE.Vector3();
+  private projectedX = Number.NaN;
+  private projectedY = Number.NaN;
+  private projectedVisible = false;
   private listenerAmplitude = 1;
   private listenerHaloScale = 1;
   private dragging = false;
@@ -63,6 +69,8 @@ export class ListenerMarker {
     this.listener.add(this.listenerOuterRing);
     scene.add(this.listener);
     this.listenerLabel = labels.add('listener', 'LISTENER <span style="opacity:.5">↔ DRAG</span>', new THREE.Vector3());
+    this.listenerLabel.element.dataset.hitRadius = String(TOUCH_HIT_RADIUS);
+    this.listenerLabel.element.dataset.micVisible = 'false';
   }
 
   update(position: Position, amplitude: number): void {
@@ -93,7 +101,26 @@ export class ListenerMarker {
     this.listenerHalo.scale.setScalar(this.listenerHaloScale * pulse);
   }
 
-  hitTest(raycaster: THREE.Raycaster): boolean {
+  project(camera: THREE.Camera, width: number, height: number): void {
+    this.listenerHead.getWorldPosition(this.projectedHead).project(camera);
+    const x = Math.round((this.projectedHead.x * 0.5 + 0.5) * width * 2) / 2;
+    const y = Math.round((-this.projectedHead.y * 0.5 + 0.5) * height * 2) / 2;
+    const visible = this.projectedHead.z >= -1 && this.projectedHead.z <= 1 && x >= 0 && x <= width && y >= 0 && y <= height;
+    if (x !== this.projectedX || y !== this.projectedY) {
+      this.projectedX = x;
+      this.projectedY = y;
+      this.listenerLabel.element.dataset.micX = String(x);
+      this.listenerLabel.element.dataset.micY = String(y);
+    }
+    if (visible !== this.projectedVisible) {
+      this.projectedVisible = visible;
+      this.listenerLabel.element.dataset.micVisible = String(visible);
+    }
+  }
+
+  hitTest(raycaster: THREE.Raycaster, touchPosition?: THREE.Vector2): boolean {
+    // A fixed screen-space target remains finger-sized when the camera zooms out.
+    if (touchPosition && this.projectedVisible && Math.hypot(touchPosition.x - this.projectedX, touchPosition.y - this.projectedY) <= TOUCH_HIT_RADIUS) return true;
     this.listener.updateWorldMatrix(true, true);
     this.pointerHits.length = 0;
     raycaster.intersectObjects(this.hitTargets, false, this.pointerHits);

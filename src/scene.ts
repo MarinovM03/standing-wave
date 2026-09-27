@@ -30,6 +30,7 @@ export class RoomScene {
   private readonly field: PressureField;
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
+  private readonly pointerPixels = new THREE.Vector2();
   private readonly dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0));
   private readonly floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0));
   private readonly dragPoint = new THREE.Vector3();
@@ -41,6 +42,7 @@ export class RoomScene {
   private readonly abort = new AbortController();
   private readonly pressed = new Set<string>();
   private readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  private readonly coarsePointer = window.matchMedia('(pointer: coarse)');
   private state: SceneState = { frequency: 343 / 12, listener: { x: 4.8, y: 1.2, z: 2 }, view: 'physics', showNodes: true, animate: true };
   private mode: Mode = getNearestMode(this.state.frequency);
   private frame = 0;
@@ -48,7 +50,7 @@ export class RoomScene {
   private height = 1;
   private dragging = false;
   private dragPointerId: number | null = null;
-  private pointerDown: { id: number; x: number; y: number; moved: boolean } | null = null;
+  private pointerDown: { id: number; x: number; y: number; moved: boolean; slop: number } | null = null;
   private cinematic = false;
   private topView = false;
   private cinematicAngle = 0;
@@ -63,14 +65,15 @@ export class RoomScene {
     this.onListenerMove = onListenerMove;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     this.renderer.setClearColor(0x070e11, 0);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.coarsePointer.matches ? 1.5 : 1.75));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
     this.renderer.domElement.className = 'room-canvas';
-    this.renderer.domElement.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none;';
-    this.renderer.domElement.setAttribute('aria-label', 'Interactive 3D acoustic room. Drag the mint listener to measure pressure, or drag the room to orbit.');
-    this.renderer.domElement.setAttribute('role', 'img');
+    this.renderer.domElement.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;';
+    this.renderer.domElement.setAttribute('aria-label', 'Interactive acoustic room');
+    this.renderer.domElement.setAttribute('aria-describedby', 'room-instructions pressure-summary');
+    this.renderer.domElement.setAttribute('role', 'application');
     this.renderer.domElement.tabIndex = 0;
     container.append(this.renderer.domElement);
 
@@ -108,6 +111,7 @@ export class RoomScene {
     window.addEventListener('keydown', this.handleKeyDown, { signal: this.abort.signal });
     window.addEventListener('keyup', this.handleKeyUp, { signal: this.abort.signal });
     window.addEventListener('blur', () => { this.pressed.clear(); this.shiftPressed = false; this.handlePointerCancel(); }, { signal: this.abort.signal });
+    this.coarsePointer.addEventListener('change', () => this.resize(), { signal: this.abort.signal });
     this.resize();
     this.resetCamera();
     this.setState(this.state);
@@ -213,9 +217,10 @@ export class RoomScene {
     this.width = Math.max(1, rect.width);
     this.height = Math.max(1, rect.height);
     this.renderer.setSize(this.width, this.height, false);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, isNarrow ? 1.5 : 1.75));
+    const compactInput = isNarrow || this.coarsePointer.matches;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, compactInput ? 1.5 : 1.75));
     this.field.setPixelRatio(this.renderer.getPixelRatio());
-    this.listener.setCompactViewport(isNarrow);
+    this.listener.setCompactViewport(compactInput);
     this.camera.aspect = this.width / this.height;
     this.camera.setViewOffset(this.width, this.height, this.width > 900 ? -this.width * 0.035 : 0, this.height * -0.015, this.width, this.height);
     this.camera.updateProjectionMatrix();
@@ -235,8 +240,11 @@ export class RoomScene {
 
   private setRay(event: PointerEvent): void {
     const rect = this.renderer.domElement.getBoundingClientRect();
+    this.pointerPixels.set(event.clientX - rect.left, event.clientY - rect.top);
     this.pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+    this.camera.updateMatrixWorld();
     this.raycaster.setFromCamera(this.pointer, this.camera);
+    this.listener.project(this.camera, this.width, this.height);
   }
 
   private moveListener(point: THREE.Vector3): void {
@@ -254,9 +262,9 @@ export class RoomScene {
       this.pointerDown = null;
       return;
     }
-    this.pointerDown = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+    this.pointerDown = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false, slop: event.pointerType === 'touch' ? 8 : 5 };
     this.setRay(event);
-    if (this.listener.hitTest(this.raycaster)) {
+    if (this.listener.hitTest(this.raycaster, event.pointerType === 'touch' ? this.pointerPixels : undefined)) {
       this.clearCameraMomentum();
       this.pressed.clear();
       this.dragPointerId = event.pointerId;
@@ -281,12 +289,12 @@ export class RoomScene {
       event.stopImmediatePropagation();
       return;
     }
-    if (this.pointerDown?.id === event.pointerId && Math.hypot(event.clientX - this.pointerDown.x, event.clientY - this.pointerDown.y) >= 5) {
+    if (this.pointerDown?.id === event.pointerId && Math.hypot(event.clientX - this.pointerDown.x, event.clientY - this.pointerDown.y) >= this.pointerDown.slop) {
       this.pointerDown.moved = true;
     }
     this.setRay(event);
     if (this.dragging) {
-      if (this.raycaster.ray.intersectPlane(this.dragPlane, this.dragPoint)) this.moveListener(this.dragPoint.add(this.dragOffset));
+      if ((event.pointerType !== 'touch' || this.pointerDown?.moved) && this.raycaster.ray.intersectPlane(this.dragPlane, this.dragPoint)) this.moveListener(this.dragPoint.add(this.dragOffset));
       event.preventDefault();
       event.stopImmediatePropagation();
       return;
@@ -318,7 +326,7 @@ export class RoomScene {
       return;
     }
     if (this.pointerDown?.id !== event.pointerId) return;
-    if (!this.pointerDown.moved && event.button === 0 && Math.hypot(event.clientX - this.pointerDown.x, event.clientY - this.pointerDown.y) < 5) {
+    if (!this.pointerDown.moved && event.button === 0 && Math.hypot(event.clientX - this.pointerDown.x, event.clientY - this.pointerDown.y) < this.pointerDown.slop) {
       this.setRay(event);
       if (this.raycaster.ray.intersectPlane(this.floorPlane, this.dragPoint) && this.dragPoint.x >= 0 && this.dragPoint.x <= ROOM.length && this.dragPoint.z >= 0 && this.dragPoint.z <= ROOM.width) this.moveListener(this.dragPoint);
     }
@@ -394,6 +402,7 @@ export class RoomScene {
     }
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
+    this.listener.project(this.camera, this.width, this.height);
     this.labels.project(this.camera, this.width, this.height, this.topView, this.state.showNodes && this.state.view === 'physics');
   };
 }
