@@ -1,10 +1,4 @@
-/*
- * Stylesheet entry point. Import order is part of the cascade contract.
- * Density and interaction rules follow the baseline responsive rules so the
- * established type scale, measurement panel, and touch layouts remain intact.
- * Keep the modules unlayered: introducing @layer would change specificity.
- */
-
+@import './ui/styles/fonts.css';
 @import './styles/foundations.css';
 @import './styles/room.css';
 @import './styles/interface.css';
