@@ -1,7 +1,9 @@
 import { RoomScene } from './scene';
 import { ToneAudio } from './audio';
-import { ROOM, getNearestMode, modeForAxis, sampleField, relativeDb, wavelength } from './acoustics';
-import type { Axis, Position, ViewMode } from './acoustics';
+import { ROOM } from './model/room';
+import type { Axis, Position } from './model/room';
+import { getNearestMode, modeForAxis, sampleField, relativeDb, wavelength } from './model/acoustics';
+import type { ViewMode } from './model/acoustics';
 import { createExperimentView } from './ui/view';
 
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');

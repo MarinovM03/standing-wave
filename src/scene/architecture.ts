@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ROOM, SPEAKER } from '../acoustics';
+import { ROOM, SPEAKER } from '../model/room';
 import type { SceneLabels } from './labels';
 
 export function addRoomLighting(scene: THREE.Scene): void {

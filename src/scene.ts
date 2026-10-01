@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { ROOM, getNearestMode, sampleField, type Position, type ViewMode, type Mode } from './acoustics';
+import { ROOM, type Position } from './model/room';
+import { getNearestMode, sampleField, type ViewMode, type Mode } from './model/acoustics';
 import { addRoomArchitecture, addRoomLighting, addRoomSpeaker } from './scene/architecture';
 import { PressureField } from './scene/field';
 import { SceneLabels } from './scene/labels';

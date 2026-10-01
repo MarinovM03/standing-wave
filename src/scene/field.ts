@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { ROOM, SPEAKER, getResponse, type Mode, type ViewMode } from '../acoustics';
+import { ROOM, SPEAKER } from '../model/room';
+import { getResponse, type Mode, type ViewMode } from '../model/acoustics';
 import { type SceneLabels, type ProjectedLabel } from './labels';
 
 // The rendering shaders use the same single-mode pressure envelope as acoustics.ts.
@@ -18,6 +19,8 @@ const FIELD_GLSL = `
     return mix(pressure, distanceOnly, uBelief);
   }
 `;
+
+const hash = (value: number): number => { const result = Math.sin(value) * 43758.5453; return result - Math.floor(result); };
 
 export class PressureField {
   private readonly fieldUniforms = {
@@ -70,7 +73,6 @@ export class PressureField {
   private buildField(): void {
     const positions: number[] = [];
     const seeds: number[] = [];
-    const hash = (value: number): number => { const result = Math.sin(value) * 43758.5453; return result - Math.floor(result); };
     for (let x = 0.08; x < ROOM.length; x += 0.21) {
       for (let y = 0.12; y < ROOM.height; y += 0.23) {
         for (let z = 0.08; z < ROOM.width; z += 0.21) {
@@ -184,12 +186,12 @@ export class PressureField {
       this.labels.remove(label);
     }
     this.nodeLabels.length = 0;
-    for (const child of [...this.nodeGroup.children]) {
+    for (const child of this.nodeGroup.children) {
       const line = child as THREE.LineSegments;
       line.geometry?.dispose();
       if (line.material) (Array.isArray(line.material) ? line.material : [line.material]).forEach((material) => material.dispose());
-      this.nodeGroup.remove(child);
     }
+    this.nodeGroup.clear();
     const { axis, order } = this.mode;
     for (let i = 0; i < order; i++) {
       const coordinate = (2 * i + 1) / (2 * order);

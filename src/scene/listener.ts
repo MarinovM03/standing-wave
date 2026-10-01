@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Position } from '../acoustics';
+import type { Position } from '../model/room';
 import type { ProjectedLabel, SceneLabels } from './labels';
 
 const TOUCH_HIT_RADIUS = 24;

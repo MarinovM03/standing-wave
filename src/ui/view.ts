@@ -1,4 +1,5 @@
-import type { Mode, Position, ViewMode } from '../acoustics';
+import type { Position } from '../model/room';
+import type { Mode, ViewMode } from '../model/acoustics';
 import { experimentMarkup } from './template';
 
 type InterfaceState = Readonly<{
