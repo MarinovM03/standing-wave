@@ -19,6 +19,7 @@ Open the local URL printed by Vite. The scene starts immediately; audio starts o
 
 ```sh
 npm test          # analytical model checks
+npm run lint     # oxlint
 npm run build    # strict TypeScript check + production bundle
 npm run preview  # serve the production bundle locally
 ```
@@ -32,7 +33,7 @@ npm run test:e2e
 
 The browser suite builds the production bundle and starts its own preview server at `http://127.0.0.1:5179/standing-wave/`. Desktop Chromium checks tuning, quiet spots, the comparison, keyboard controls, mic dragging, camera movement, accessible pressure feedback, and agreement between the meter and audio gain. It also checks short windows, static metadata, and subpath asset responses. Separate Pixel 7 portrait and landscape projects use mobile viewports and touch input, including live rotation and the persistent sound control. These are browser emulation, not tests on physical phones. Optionally set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to the absolute path of an existing compatible Chrome/Chromium executable.
 
-Pushes and pull requests run the build, acoustic tests, and all Chromium browser projects in GitHub Actions on Node 22. Failed browser runs retain their Playwright report, traces, and screenshots as an artifact.
+Pushes and pull requests run lint, the build, acoustic tests, and all Chromium browser projects in GitHub Actions on Node 22. Failed browser runs retain their Playwright report, traces, and screenshots as an artifact.
 
 ## Deploy under a subpath
 
@@ -57,7 +58,8 @@ The application uses TypeScript modules with separate responsibilities:
 | `src/main.ts` | Own experiment state, route user actions, and coordinate the interface, scene, and audio |
 | `src/ui/template.ts` | Static page markup, icons, and explanatory copy |
 | `src/ui/view.ts` | Render readings and control states through cached DOM references |
-| `src/acoustics.ts` | Pure calculations for room modes, pressure, wavelength, and relative level |
+| `src/model/room.ts` | Room size, axes, the speaker's default and preset positions, and position limits |
+| `src/model/acoustics.ts` | Pure calculations for room modes, speaker coupling, pressure, wavelength, node planes, and relative level |
 | `src/audio.ts` | Manage the optional tone, gain transitions, and audio lifecycle |
 | `src/scene.ts` | Own the renderer, camera, pointer interaction, and scene lifecycle |
 | `src/scene/` | Build the room, pressure field, listener marker, and projected labels |
@@ -128,6 +130,8 @@ f_n = n c / (2 L)
 
 Here `n` is the mode order, `L` is that room dimension in metres, and `s` is position along it. Each axial mode has pressure antinodes at its pair of opposing boundaries. Its nodal planes extend across the other walls. The first mode has one interior nodal plane; the second has two. Opposite signed lobes oscillate in opposite phase, while their quiet planes stay in place.
 
+A speaker drives each mode in proportion to the mode's shape where the speaker stands, `|φ_n|` at the speaker. A speaker on a nodal plane cannot excite that mode; a speaker in a corner sits on an antinode of every mode. The listener's reading carries the same factor at the listener's position, so swapping speaker and listener gives the same level.
+
 Mode labels use the order **(length, width, height)**: `(1, 0, 0)` varies once along the length, `(0, 1, 0)` across the width, and `(0, 0, 1)` vertically. World coordinates in the code are `x = length`, `y = height`, `z = width`.
 
 Corners lie at the pressure antinodes of ideal rectangular-room modes. This helps explain why bass often builds up near boundaries. It does not mean that a corner is always the loudest location for every frequency in every real room.
@@ -135,12 +139,12 @@ Corners lie at the pressure antinodes of ideal rectangular-room modes. This help
 ## What is deliberately simplified
 
 - **One isolated axial mode at a time.** The viewer chooses the nearest axial eigenfrequency in the 25–200 Hz catalogue. It does not add all modes together. For coincident frequencies, it chooses length before width before height; when two distinct frequencies are equally near, it chooses the lower frequency. For example, `(3, 0, 0)` and `(0, 2, 0)` both occur at 85.75 Hz; a real room can excite both at once. The selected pattern can therefore change when crossing the midpoint between eigenfrequencies.
-- **Normalized modes.** Each mode has a peak amplitude of 1 at resonance. The fixed speaker sits near a corner. Its exact coupling to each mode, speaker directivity, and different peak strengths are omitted. This makes nodal patterns easy to compare; it is not a prediction of the speaker's complete room response.
+- **Normalized modes, simple coupling.** Each mode has a peak amplitude of 1 at resonance when the speaker sits on one of its antinodes. The speaker is a point at its woofer centre, 0.25 m from the back and side walls and 0.35 m above the floor, and each mode is scaled by `|φ_n|` at that point. Speaker directivity, cabinet size, and different peak strengths are omitted. Because only the nearest mode is shown, a speaker on that mode's nodal plane silences the whole view, while a real room would still carry other modes off resonance. This makes nodal patterns easy to compare; it is not a prediction of the speaker's complete room response.
 - **Illustrative detuning.** A Lorentzian envelope with `Q = 12` reduces the selected mode's amplitude as you move away from its eigenfrequency. This is a smooth demonstration of resonance, not measured wall absorption:
 
   ```text
   gain = 1 / sqrt(1 + [2 Q (f - f_n) / f_n]²)
-  amplitude = 0.02 + 0.98 × |φ_n| × gain
+  amplitude = 0.02 + 0.98 × |φ_n(listener)| × |φ_n(speaker)| × gain
   ```
 
 - **Nearly silent nodes.** A 2% amplitude floor avoids presenting mathematically perfect silence as a real-room guarantee. This is a chosen display and audio floor, not a simulated noise source.
@@ -162,4 +166,4 @@ The interface uses [DM Sans](https://github.com/google/fonts/tree/main/ofl/dmsan
 
 ## Model checks
 
-`src/acoustics.test.ts` checks known eigenfrequencies and wavelength units, rigid-boundary antinodes, central and higher-order nodes, axis/index conventions, coincident-mode selection, detuning bandwidth, bounded amplitudes, relative pressure decibels, and the difference between distance falloff and a far-wall antinode.
+`src/model/acoustics.test.ts` checks known eigenfrequencies and wavelength units, rigid-boundary antinodes, central and higher-order nodes, axis/index conventions, coincident-mode selection, detuning bandwidth, bounded amplitudes, relative pressure decibels, and the difference between distance falloff and a far-wall antinode. It also checks speaker coupling: a corner speaker drives every axial mode fully, a speaker at half the length drives (2, 0, 0) but not (1, 0, 0), a speaker at a quarter of the length does not drive (2, 0, 0), a speaker on any nodal plane leaves only the floor, and swapping speaker and listener gives the same level. Node and antinode planes, the half wavelength, and the mic and speaker presets are checked too. `src/model/room.test.ts` checks the position limits.
