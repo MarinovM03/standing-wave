@@ -92,12 +92,12 @@ for (const viewport of [{ width: 1440, height: 420 }, { width: 1440, height: 650
     expect(box!.width).toBeGreaterThan(200);
     expect(box!.height).toBeGreaterThan(140);
     await expect.poll(() => page.evaluate(() => {
-      const canvas = document.querySelector('canvas')!;
-      const rect = canvas.getBoundingClientRect();
+      const room = document.querySelector('canvas')!;
+      const rect = room.getBoundingClientRect();
       const mic = document.querySelector<HTMLElement>('.sw-scene-label--listener')!;
       return mic.dataset.micVisible === 'true' && document.elementFromPoint(
         rect.left + Number(mic.dataset.micX), rect.top + Number(mic.dataset.micY),
-      ) === canvas;
+      ) === room;
     }), 'The projected mic is exposed in the room').toBe(true);
     const position = await page.locator('#position-readout').textContent();
     await canvas.focus();
@@ -113,8 +113,8 @@ test('raw production HTML contains crawler copy and deployment-aware share metad
   expect(response.headers()['content-type']).toContain('text/html');
   const html = await response.text();
   expect(html).not.toMatch(/%[A-Z_]+%/);
-  const content = await page.evaluate(html => {
-    const document = new DOMParser().parseFromString(html, 'text/html');
+  const content = await page.evaluate(source => {
+    const document = new DOMParser().parseFromString(source, 'text/html');
     const meta = (name: string) => document.querySelector(`meta[name="${name}"], meta[property="${name}"]`)?.getAttribute('content');
     const structured = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
       .flatMap(script => {
@@ -166,7 +166,7 @@ test('production assets load beneath the configured base with real file types', 
       url: response.url(), status: response.status(), type: response.headers()['content-type'] || '',
     });
   });
-  page.on('requestfailed', request => failures.push(request.url()));
+  page.on('requestfailed', failed => failures.push(failed.url()));
   await page.goto('./');
   await expect(page.locator('canvas')).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
@@ -174,7 +174,7 @@ test('production assets load beneath the configured base with real file types', 
     elements.map(element => element.getAttribute('src') || element.getAttribute('href')!),
   );
   const types = { '.js': /(?:java|ecma)script/, '.css': /text\/css/, '.svg': /image\/svg\+xml/, '.ttf': /font\/ttf|application\/(?:x-font-ttf|font-sfnt|octet-stream)/ };
-  for (const resource of resources.filter(resource => /\.(?:js|css|ttf)(?:\?|$)/.test(resource.url))) {
+  for (const resource of resources.filter(entry => /\.(?:js|css|ttf)(?:\?|$)/.test(entry.url))) {
     const url = new URL(resource.url);
     expect(url.pathname).toMatch(new RegExp(`^${base.pathname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
     expect(resource.status, url.pathname).toBe(200);

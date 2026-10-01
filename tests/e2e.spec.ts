@@ -7,19 +7,19 @@ test.beforeEach(async ({ page }) => {
   pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   await page.addInitScript(() => {
-    const audioWindow = window as Window & { __toneProbe: AudioProbe };
+    const audioWindow = window as Window & { toneProbe: AudioProbe };
     const NativeAudioContext = window.AudioContext;
-    audioWindow.__toneProbe = { contexts: [], oscillators: [], gains: [] };
+    audioWindow.toneProbe = { contexts: [], oscillators: [], gains: [] };
     window.AudioContext = class extends NativeAudioContext {
-      constructor(options?: AudioContextOptions) { super(options); audioWindow.__toneProbe.contexts.push(this); }
+      constructor(options?: AudioContextOptions) { super(options); audioWindow.toneProbe.contexts.push(this); }
       override createOscillator(): OscillatorNode {
         const oscillator = super.createOscillator();
-        audioWindow.__toneProbe.oscillators.push(oscillator);
+        audioWindow.toneProbe.oscillators.push(oscillator);
         return oscillator;
       }
       override createGain(): GainNode {
         const gain = super.createGain();
-        audioWindow.__toneProbe.gains.push(gain);
+        audioWindow.toneProbe.gains.push(gain);
         return gain;
       }
     };
@@ -183,10 +183,10 @@ test('phone layout fits the viewport and leaves the mic available to drag', asyn
 test('mic pressure cue, relative level and real audio gain stay in sync', async ({ page }) => {
   const cue = page.locator('.sw-scene-label--listener');
   const audio = () => page.evaluate(() => {
-    const probe = (window as Window & { __toneProbe: AudioProbe }).__toneProbe;
+    const probe = (window as Window & { toneProbe: AudioProbe }).toneProbe;
     return { state: probe.contexts.at(-1)?.state, frequency: probe.oscillators.at(-1)?.frequency.value ?? 0, gain: probe.gains.at(-1)?.gain.value ?? 0 };
   });
-  expect(await page.evaluate(() => (window as Window & { __toneProbe: AudioProbe }).__toneProbe.contexts.length)).toBe(0);
+  expect(await page.evaluate(() => (window as Window & { toneProbe: AudioProbe }).toneProbe.contexts.length)).toBe(0);
   await expect(page.locator('.masthead #sound-button')).toHaveCount(1);
   await expect(page.locator('#sound-label')).toHaveText('Sound off');
   await page.locator('#sound-button').click();
@@ -209,11 +209,11 @@ test('mic pressure cue, relative level and real audio gain stay in sync', async 
   const pressure = Number(await cue.getAttribute('data-amplitude'));
   await expect.poll(async () => (await audio()).gain).toBeCloseTo(pressure * 0.1, 3);
   expect(await level(page)).toBeCloseTo(20 * Math.log10(pressure), 0);
-  await page.evaluate(() => (window as Window & { __toneProbe: AudioProbe }).__toneProbe.contexts.at(-1)!.suspend());
+  await page.evaluate(() => (window as Window & { toneProbe: AudioProbe }).toneProbe.contexts.at(-1)!.suspend());
   await expect(page.locator('#sound-button')).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('#sound-label')).toHaveText('Sound off');
   await expect.poll(async () => (await audio()).gain).toBe(0);
-  await page.evaluate(() => (window as Window & { __toneProbe: AudioProbe }).__toneProbe.contexts.at(-1)!.resume());
+  await page.evaluate(() => (window as Window & { toneProbe: AudioProbe }).toneProbe.contexts.at(-1)!.resume());
   expect((await audio()).gain).toBe(0);
   await expect(page.locator('#sound-button')).toHaveAttribute('aria-pressed', 'false');
   await page.locator('#sound-button').click();
@@ -241,7 +241,7 @@ test('sound startup cannot overlap and failure paths leave the lab usable', asyn
   await expect(button).toHaveAccessibleName('Starting sound…');
   // Dispatch bypasses disabled-button hit testing and exercises the handler's guard.
   await button.dispatchEvent('click');
-  expect(await page.evaluate(() => (window as Window & { __toneProbe: AudioProbe }).__toneProbe.contexts.length)).toBe(1);
+  expect(await page.evaluate(() => (window as Window & { toneProbe: AudioProbe }).toneProbe.contexts.length)).toBe(1);
   await page.evaluate(() => (window as Window & { releaseAudioStart: () => void }).releaseAudioStart());
   await expect(button).toBeEnabled();
   await expect(button).toHaveAttribute('aria-pressed', 'true');
@@ -251,8 +251,8 @@ test('sound startup cannot overlap and failure paths leave the lab usable', asyn
 
   for (const failure of ['denied', 'unsupported']) {
     await page.reload();
-    await page.evaluate(failure => {
-      if (failure === 'unsupported') {
+    await page.evaluate(kind => {
+      if (kind === 'unsupported') {
         Object.defineProperty(window, 'AudioContext', { configurable: true, value: undefined });
         Object.defineProperty(window, 'webkitAudioContext', { configurable: true, value: undefined });
       } else {

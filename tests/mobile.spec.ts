@@ -8,7 +8,7 @@ type MobileProbe = {
   pointerTypes: string[];
 };
 declare global {
-  interface Window { __mobileProbe: MobileProbe }
+  interface Window { mobileProbe: MobileProbe }
 }
 
 let browserErrors: string[];
@@ -21,7 +21,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   });
   await page.addInitScript(() => {
     const probe: MobileProbe = { contexts: [], gains: [], oscillators: [], pointerTypes: [] };
-    window.__mobileProbe = probe;
+    window.mobileProbe = probe;
     document.addEventListener('pointerdown', event => probe.pointerTypes.push(event.pointerType), true);
     const NativeAudioContext = window.AudioContext;
     window.AudioContext = class extends NativeAudioContext {
@@ -57,7 +57,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 
 test.afterEach(async ({ page }) => {
   expect(browserErrors, 'No browser exceptions, WebGL errors, or failed resources').toEqual([]);
-  const pointerTypes = await page.evaluate(() => window.__mobileProbe.pointerTypes);
+  const pointerTypes = await page.evaluate(() => window.mobileProbe.pointerTypes);
   expect(pointerTypes, 'Every test exercises native touch input').toContain('touch');
   expect(pointerTypes, 'Mobile tests never use mouse or hover input').not.toContain('mouse');
 });
@@ -132,7 +132,7 @@ async function expectTouchTargets(page: Page): Promise<void> {
 
 async function audioState(page: Page) {
   return page.evaluate(() => {
-    const probe = window.__mobileProbe;
+    const probe = window.mobileProbe;
     return {
       contextCount: probe.contexts.length,
       state: probe.contexts[0]?.state,
