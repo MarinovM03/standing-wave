@@ -76,10 +76,10 @@ for (const viewport of [{ width: 1440, height: 420 }, { width: 1440, height: 650
     await expect(page.locator('.listener-card')).toHaveAttribute('data-pressure', 'quiet');
     await page.locator('#peak-button').click();
     await expect(page.locator('.listener-card')).toHaveAttribute('data-pressure', 'hot');
-    await page.locator('#top-button').click();
-    await expect(page.locator('#top-button')).toHaveAttribute('aria-pressed', 'true');
+    await page.locator('#camera-button').click();
+    await expect(page.locator('#camera-button')).toHaveAttribute('aria-pressed', 'true');
     await page.locator('#reset-button').click();
-    await expect(page.locator('#top-button')).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('#camera-button')).toHaveAttribute('aria-pressed', 'false');
 
     const frequency = page.locator('#frequency');
     await expectExposed(frequency);
@@ -94,9 +94,9 @@ for (const viewport of [{ width: 1440, height: 420 }, { width: 1440, height: 650
     await expect.poll(() => page.evaluate(() => {
       const room = document.querySelector('canvas')!;
       const rect = room.getBoundingClientRect();
-      const mic = document.querySelector<HTMLElement>('.sw-scene-label--listener')!;
-      return mic.dataset.micVisible === 'true' && document.elementFromPoint(
-        rect.left + Number(mic.dataset.micX), rect.top + Number(mic.dataset.micY),
+      const mic = document.querySelector<HTMLElement>('[data-callout="mic"]')!;
+      return mic.dataset.visible === 'true' && document.elementFromPoint(
+        rect.left + Number(mic.dataset.x), rect.top + Number(mic.dataset.y),
       ) === room;
     }), 'The projected mic is exposed in the room').toBe(true);
     const position = await page.locator('#position-readout').textContent();

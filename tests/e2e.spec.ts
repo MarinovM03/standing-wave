@@ -26,8 +26,11 @@ test.beforeEach(async ({ page }) => {
   });
   await page.goto('./');
   await expect(page.locator('canvas')).toBeVisible();
-  await expect(page.locator('.sw-scene-label--listener')).toBeVisible();
+  await expect(page.locator('[data-callout="mic"]')).toBeVisible();
   await expect(page.locator('.webgl-fallback')).toHaveCount(0);
+  // Any input lands the intro camera settle, so projected points hold still.
+  await page.keyboard.press('Shift');
+  await expect(page.locator('canvas')).toHaveAttribute('data-camera', 'home');
 });
 
 test.afterEach(() => expect(pageErrors, 'No uncaught browser errors').toEqual([]));
@@ -36,25 +39,22 @@ async function level(page: Page): Promise<number> {
   return Number((await page.locator('#level-db').innerText()).replace('−', '-'));
 }
 
-/** Find the actual projected 3D hit target rather than relying on fixed screen coordinates. */
+/** Find the projected 3D mic from its callout rather than relying on fixed screen coordinates. */
 async function micTarget(page: Page): Promise<{ x: number; y: number }> {
+  const callout = page.locator('[data-callout="mic"]');
+  await expect(callout).toHaveAttribute('data-visible', 'true');
+  let point = { x: 0, y: 0 };
   await expect.poll(async () => {
-    const projected = await page.locator('.sw-scene-label--listener').boundingBox();
-    const viewport = page.viewportSize();
-    return !!projected && !!viewport && projected.x > 0 && projected.x + projected.width < viewport.width;
-  }).toBe(true);
-  const box = await page.locator('.sw-scene-label--listener').boundingBox();
-  if (!box) throw new Error('Listener label is not projected');
-  for (const offset of [10, 18, 25, 32, 40, 48, 58, 72, 90]) {
-    const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 + offset };
+    const stage = await page.locator('canvas').boundingBox();
+    if (!stage) return false;
+    point = { x: stage.x + Number(await callout.getAttribute('data-x')), y: stage.y + Number(await callout.getAttribute('data-y')) };
     await page.mouse.move(point.x, point.y);
-    const hit = await page.evaluate(({ x, y }) => {
+    return page.evaluate(({ x, y }) => {
       const canvas = document.querySelector('canvas');
       return canvas?.style.cursor === 'grab' && document.elementFromPoint(x, y) === canvas;
     }, point);
-    if (hit) return point;
-  }
-  throw new Error('No exposed listener hit target: another UI element may cover the mic');
+  }, { message: 'The mic is exposed and grabbable at its projected tip' }).toBe(true);
+  return point;
 }
 
 test('tuning, nodes, corners and the source-only comparison agree with the model', async ({ page }) => {
@@ -138,7 +138,7 @@ test('dragging the 3D mic changes its reading while orbiting preserves its posit
   await expect(page.locator('#position-readout')).not.toHaveText(initialPosition);
   expect(await level(page)).toBeLessThan(initialLevel - 8);
   await page.keyboard.press('r');
-  const before = await page.locator('.sw-scene-label--listener').getAttribute('style');
+  const before = await page.locator('[data-callout="mic"]').getAttribute('style');
   const canvas = await page.locator('canvas').boundingBox();
   if (!canvas) throw new Error('Canvas is missing');
   const origin = { x: canvas.x + canvas.width * 0.77, y: canvas.y + canvas.height * 0.53 };
@@ -147,7 +147,7 @@ test('dragging the 3D mic changes its reading while orbiting preserves its posit
   await page.mouse.move(origin.x + 45, origin.y + 25, { steps: 10 });
   await page.mouse.up();
   await expect(page.locator('#position-readout')).toHaveText(initialPosition);
-  await expect(page.locator('.sw-scene-label--listener')).not.toHaveAttribute('style', before ?? '');
+  await expect(page.locator('[data-callout="mic"]')).not.toHaveAttribute('style', before ?? '');
 });
 
 test('phone layout fits the viewport and leaves the mic available to drag', async ({ page }) => {
@@ -181,7 +181,7 @@ test('phone layout fits the viewport and leaves the mic available to drag', asyn
 });
 
 test('mic pressure cue, relative level and real audio gain stay in sync', async ({ page }) => {
-  const cue = page.locator('.sw-scene-label--listener');
+  const cue = page.locator('[data-callout="mic"]');
   const audio = () => page.evaluate(() => {
     const probe = (window as Window & { toneProbe: AudioProbe }).toneProbe;
     return { state: probe.contexts.at(-1)?.state, frequency: probe.oscillators.at(-1)?.frequency.value ?? 0, gain: probe.gains.at(-1)?.gain.value ?? 0 };

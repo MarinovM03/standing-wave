@@ -45,8 +45,11 @@ test.beforeEach(async ({ page }, testInfo) => {
   });
   await page.goto('./');
   await expect(page.locator('canvas')).toBeVisible();
-  await expect(page.locator('.sw-scene-label--listener')).toBeVisible();
+  await expect(page.locator('[data-callout="mic"]')).toBeVisible();
   await expect(page.locator('.webgl-fallback')).toHaveCount(0);
+  // Any input lands the intro camera settle, so projected points hold still.
+  await page.keyboard.press('Shift');
+  await expect(page.locator('canvas')).toHaveAttribute('data-camera', 'home');
   expect(await page.evaluate(() => navigator.maxTouchPoints)).toBeGreaterThan(0);
   expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
   expect(await page.evaluate(() => innerWidth > innerHeight)).toBe(testInfo.project.name.endsWith('landscape'));
@@ -87,19 +90,19 @@ async function swipe(page: Page, from: Point, to: Point, onStart?: (session: CDP
 async function micTarget(page: Page): Promise<Point> {
   const canvas = page.locator('canvas');
   await canvas.scrollIntoViewIfNeeded();
-  const label = page.locator('.sw-scene-label--listener');
-  await expect(label).toHaveAttribute('data-mic-x', /\d/);
-  await expect(label).toHaveAttribute('data-mic-y', /\d/);
-  await expect(label).toHaveAttribute('data-mic-visible', 'true');
+  const callout = page.locator('[data-callout="mic"]');
+  await expect(callout).toHaveAttribute('data-x', /\d/);
+  await expect(callout).toHaveAttribute('data-y', /\d/);
+  await expect(callout).toHaveAttribute('data-visible', 'true');
   await expect.poll(() => page.evaluate(() => {
-    const element = document.querySelector<HTMLDivElement>('.sw-scene-label--listener')!;
+    const element = document.querySelector<HTMLDivElement>('[data-callout="mic"]')!;
     const rect = document.querySelector('canvas')!.getBoundingClientRect();
-    return document.elementFromPoint(rect.left + Number(element.dataset.micX), rect.top + Number(element.dataset.micY))?.tagName;
+    return document.elementFromPoint(rect.left + Number(element.dataset.x), rect.top + Number(element.dataset.y))?.tagName;
   }), { message: 'The resized projected mic head is exposed to touch' }).toBe('CANVAS');
   const point = await page.evaluate(() => {
-    const element = document.querySelector<HTMLDivElement>('.sw-scene-label--listener')!;
+    const element = document.querySelector<HTMLDivElement>('[data-callout="mic"]')!;
     const rect = document.querySelector('canvas')!.getBoundingClientRect();
-    return { x: rect.left + Number(element.dataset.micX), y: rect.top + Number(element.dataset.micY) };
+    return { x: rect.left + Number(element.dataset.x), y: rect.top + Number(element.dataset.y) };
   });
   expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, point),
     'The projected 3D mic head is exposed to touch').toBe('CANVAS');
@@ -223,7 +226,7 @@ test('a finger drags the mic directly while an empty-room gesture only orbits', 
   const positionBefore = await page.locator('#position-readout').innerText();
   const canvasBox = await page.locator('canvas').boundingBox();
   if (!canvasBox) throw new Error('Room canvas has no touch target');
-  const roomLabel = page.locator('.sw-scene-label--dimension').first();
+  const roomLabel = page.locator('[data-callout="speaker"]');
   const roomProjectionBefore = await roomLabel.getAttribute('style');
   const destination = { x: target.x - Math.min(70, canvasBox.width * 0.16), y: target.y - 12 };
   // Start near the edge of the 48px touch area, beyond the small visible mic mesh.
@@ -240,14 +243,14 @@ test('a finger drags the mic directly while an empty-room gesture only orbits', 
   await expect(roomLabel, 'Mic dragging does not orbit the camera').toHaveAttribute('style', roomProjectionBefore!);
 
   const positionAfter = await page.locator('#position-readout').innerText();
-  const projectionBefore = await page.locator('.sw-scene-label--listener').getAttribute('style');
+  const projectionBefore = await page.locator('[data-callout="mic"]').getAttribute('style');
   const emptyPoint = { x: canvasBox.x + canvasBox.width * 0.15, y: canvasBox.y + canvasBox.height * 0.25 };
   expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, emptyPoint)).toBe('CANVAS');
   await swipe(page, emptyPoint, { x: emptyPoint.x + 65, y: emptyPoint.y + 20 }, async () => {
     await expect(page.locator('body')).not.toHaveClass(/dragging-mic/);
   });
   await expect(page.locator('#position-readout')).toHaveText(positionAfter);
-  await expect(page.locator('.sw-scene-label--listener')).not.toHaveAttribute('style', projectionBefore!);
+  await expect(page.locator('[data-callout="mic"]')).not.toHaveAttribute('style', projectionBefore!);
 });
 
 test('sound starts on a tap, follows pressure, and stays muted after hiding', async ({ page }) => {
