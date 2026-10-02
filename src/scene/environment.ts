@@ -11,6 +11,8 @@ const HAZE_DENSITY = 0.02;
 const KEY_INTENSITY = 1.9;
 const RIM_INTENSITY = 1.7;
 const PLAIN_FILL_INTENSITY = 2.4;
+const FLOOR_RADIUS = 40;
+const FLOOR_FADE = { from: 12, to: 36 };
 
 export type Studio = { dispose(): void };
 
@@ -23,7 +25,10 @@ export function addStudio(scene: THREE.Scene, renderer: THREE.WebGLRenderer, mod
   const rim = new THREE.DirectionalLight(LIGHTS.rim, RIM_INTENSITY);
   rim.position.set(centre.x + 9, 6, centre.z - 8);
   rim.target.position.set(centre.x, 1, centre.z);
-  const floor = new THREE.Mesh(new THREE.CircleGeometry(40, 72), surfaceMaterial(tier, { color: STUDIO.floor, roughness: 0.94, metalness: 0 }));
+  // The studio floor fills most of the frame; lit per pixel it costs a software renderer more than the whole room.
+  const floorMaterial = tier === 'plain' ? new THREE.MeshBasicMaterial({ color: STUDIO.floor }) : surfaceMaterial(tier, { color: STUDIO.floor, roughness: 0.94, metalness: 0 });
+  floorMaterial.onBeforeCompile = fadeToHorizon;
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(FLOOR_RADIUS, 72), floorMaterial);
   floor.rotation.x = -Math.PI / 2;
   floor.position.set(centre.x, model.floor, centre.z);
   scene.add(key, key.target, rim, rim.target, floor);
@@ -45,7 +50,6 @@ export function addStudio(scene: THREE.Scene, renderer: THREE.WebGLRenderer, mod
   scene.environmentIntensity = ENVIRONMENT_INTENSITY;
   const backdrop = new THREE.Mesh(new THREE.SphereGeometry(60, 48, 24), new THREE.ShaderMaterial({
     uniforms: {
-      uFloor: { value: new THREE.Color(STUDIO.floor) },
       uHorizon: { value: new THREE.Color(STUDIO.horizon) },
       uSky: { value: new THREE.Color(STUDIO.sky) },
     },
@@ -70,6 +74,7 @@ export function addStudio(scene: THREE.Scene, renderer: THREE.WebGLRenderer, mod
 function reflections(renderer: THREE.WebGLRenderer): THREE.WebGLRenderTarget {
   const generator = new THREE.PMREMGenerator(renderer);
   const room = new RoomEnvironment();
+  // r186's PMREM shader trips a harmless ANGLE D3D11 precision note (X4122) that would be logged as an error.
   const checkShaderErrors = renderer.debug.checkShaderErrors;
   renderer.debug.checkShaderErrors = false;
   const environment = generator.fromScene(room, 0.04);
@@ -77,4 +82,17 @@ function reflections(renderer: THREE.WebGLRenderer): THREE.WebGLRenderTarget {
   room.dispose();
   generator.dispose();
   return environment;
+}
+
+// The floor melts into the haze colour before its edge, so it meets the backdrop without a seam.
+function fadeToHorizon(shader: THREE.WebGLProgramParametersWithUniforms): void {
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nvarying float vStudioRadius;')
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvStudioRadius = length(position.xy);');
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\nvarying float vStudioRadius;')
+    .replace('#include <fog_fragment>', `#include <fog_fragment>
+      #ifdef USE_FOG
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, smoothstep(${FLOOR_FADE.from.toFixed(1)}, ${FLOOR_FADE.to.toFixed(1)}, vStudioRadius));
+      #endif`);
 }

@@ -1,221 +1,238 @@
 import * as THREE from 'three';
-import { ROOM, SPEAKER } from '../model/room';
-import { getResponse, type Mode, type ViewMode } from '../model/acoustics';
-import { type SceneLabels, type ProjectedLabel } from './labels';
+import { AXIAL_MODES, FIELD_FLOOR, nodePlanes, type Mode, type ViewMode } from '../model/acoustics';
+import { COORDINATE, ROOM, type Position } from '../model/room';
+import { halfWaveLine, planeOutline } from './anchors';
+import { FIELD } from './palette';
+import { BLOOM_LAYER } from './post';
+import type { Tier } from './renderer';
+import {
+  FIELD_FLOOR_FRAGMENT,
+  FIELD_POINTS_FRAGMENT,
+  FIELD_POINTS_VERTEX,
+  FIELD_SURFACE_VERTEX,
+  FIELD_WALL_FRAGMENT,
+  fieldCommon,
+} from './shaders';
 
-// The rendering shaders use the same single-mode pressure envelope as acoustics.ts.
-// Animation is deliberately slow and decorative; these are not sound-speed wavefronts.
-const FIELD_GLSL = `
-  uniform float uAxis;
-  uniform float uOrder;
-  uniform float uResponse;
-  uniform float uBelief;
-  uniform float uTime;
-  uniform vec3 uSpeaker;
-  float field(vec3 p) {
-    float coordinate = uAxis < 0.5 ? p.x / 6.0 : (uAxis < 1.5 ? p.z / 4.0 : p.y / 2.8);
-    float pressure = 0.02 + 0.98 * abs(cos(3.14159265 * uOrder * coordinate)) * uResponse;
-    float distanceOnly = 1.0 / (1.0 + distance(p, uSpeaker));
-    return mix(pressure, distanceOnly, uBelief);
-  }
-`;
+export type FieldState = {
+  mode: Mode;
+  coupling: number;
+  response: number;
+  view: ViewMode;
+  speaker: Position;
+  mic: Position;
+};
 
-const hash = (value: number): number => { const result = Math.sin(value) * 43758.5453; return result - Math.floor(result); };
+const FADE_SECONDS = 0.2;
+const YOUD_THINK_DIM = 0.7;
+const SWING_HZ = 1;
+const SWING_EASE_SECONDS = 0.3;
+const FLOOR = { intensity: 1.5, shade: 0.75, grid: 0.035, lift: 0.004 };
+const WALL = { intensity: 0.14, inset: 0.004 };
+const POINTS = { intensity: 0.26, size: 0.034, maxSize: 3 };
+const PARTICLES = { full: 8000, phone: 3000, plain: 1500 };
+// Without the composer each fragment is encoded to sRGB before it blends, which lifts faint glows several times over.
+const PLAIN_DIM = { floor: 0.65, points: 0.3 };
+const LINE_OPACITY = { node: 0.6, half: 0.7, distance: 0.55 };
+const MAX_NODES = Math.max(...AXIAL_MODES.map((mode) => mode.order));
+const AXIS_VECTORS = { x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 1, 0), z: new THREE.Vector3(0, 0, 1) } as const;
 
-export class PressureField {
-  private readonly fieldUniforms = {
-    uAxis: { value: 0 },
+export class Field {
+  private readonly uniforms = {
+    uAxis: { value: new THREE.Vector3(1, 0, 0) },
     uOrder: { value: 1 },
+    uCoupling: { value: 1 },
     uResponse: { value: 1 },
     uBelief: { value: 0 },
-    uTime: { value: 0 },
-    uPixelRatio: { value: 1 },
-    uSpeaker: { value: new THREE.Vector3(SPEAKER.x, SPEAKER.y, SPEAKER.z) },
+    uSwing: { value: 0 },
+    uSpeaker: { value: new THREE.Vector3() },
+    uActually: { value: new THREE.Color(FIELD.actually) },
+    uYoudThink: { value: new THREE.Color(FIELD.youdThink).multiplyScalar(YOUD_THINK_DIM) },
   };
-  private readonly curtains: THREE.Mesh[] = [];
-  private readonly nodeGroup = new THREE.Group();
-  private readonly nodeLabels: ProjectedLabel[] = [];
+  private readonly pixelRatio = { value: 1 };
+  private readonly viewScale = { value: 1 };
+  private readonly nodeLines: THREE.LineSegments<THREE.BufferGeometry, THREE.LineDashedMaterial>;
+  private readonly halfLine: THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial>;
+  private readonly distanceLine: THREE.Line<THREE.BufferGeometry, THREE.LineDashedMaterial>;
+  private belief = 0;
+  private beliefGoal = 0;
+  private swing = 0;
+  private swingGoal = 0;
+  private phase = 0;
 
-  constructor(
-    private readonly scene: THREE.Scene,
-    private readonly labels: SceneLabels,
-    private mode: Mode,
-    private view: ViewMode,
-  ) {
-    this.buildField();
-    this.scene.add(this.nodeGroup);
-  }
-
-  update(frequency: number, mode: Mode, view: ViewMode, showNodes: boolean): void {
-    const oldMode = this.mode;
-    const oldView = this.view;
-    this.mode = mode;
-    this.view = view;
-    this.fieldUniforms.uAxis.value = mode.axis === 'length' ? 0 : mode.axis === 'width' ? 1 : 2;
-    this.fieldUniforms.uOrder.value = mode.order;
-    this.fieldUniforms.uResponse.value = getResponse(frequency, mode);
-    this.fieldUniforms.uBelief.value = view === 'belief' ? 1 : 0;
-    if (oldMode.axis !== mode.axis || oldView !== view) this.alignCurtains();
-    if (oldMode.axis !== mode.axis || oldMode.order !== mode.order || this.nodeLabels.length === 0) this.rebuildNodeMarkers();
-    this.nodeGroup.visible = showNodes && view === 'physics';
-    for (const label of this.nodeLabels) label.element.style.display = this.nodeGroup.visible ? '' : 'none';
-  }
-
-  advance(delta: number): number {
-    this.fieldUniforms.uTime.value += delta;
-    return this.fieldUniforms.uTime.value;
-  }
-
-  setPixelRatio(pixelRatio: number): void {
-    this.fieldUniforms.uPixelRatio.value = pixelRatio;
-  }
-
-  private buildField(): void {
-    const positions: number[] = [];
-    const seeds: number[] = [];
-    for (let x = 0.08; x < ROOM.length; x += 0.21) {
-      for (let y = 0.12; y < ROOM.height; y += 0.23) {
-        for (let z = 0.08; z < ROOM.width; z += 0.21) {
-          const seed = x * 23.42 + y * 62.34 + z * 9.93;
-          // Field strength is still evaluated at each particle's actual position.
-          positions.push(x + (hash(seed) - 0.5) * 0.055, y + (hash(seed + 41) - 0.5) * 0.055, z + (hash(seed + 83) - 0.5) * 0.055);
-          seeds.push(hash(seed + 127));
-        }
-      }
-    }
-    const pointGeometry = new THREE.BufferGeometry();
-    pointGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    pointGeometry.setAttribute('aSeed', new THREE.Float32BufferAttribute(seeds, 1));
-    const pointMaterial = new THREE.ShaderMaterial({
-      uniforms: this.fieldUniforms,
+  constructor(scene: THREE.Scene, tier: Tier, phone: boolean) {
+    const plain = tier === 'plain';
+    const common = fieldCommon(ROOM, FIELD_FLOOR);
+    const surface = (fragment: string, extra: Record<string, THREE.IUniform>, blending: THREE.Blending, premultipliedAlpha: boolean) => new THREE.ShaderMaterial({
+      uniforms: { ...this.uniforms, ...extra },
+      vertexShader: FIELD_SURFACE_VERTEX,
+      fragmentShader: `${common}\n${fragment}`,
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      vertexShader: `${FIELD_GLSL}
-        uniform float uPixelRatio;
-        attribute float aSeed;
-        varying float vAmplitude;
-        varying float vSeed;
-        void main() {
-          vAmplitude = field(position);
-          vSeed = aSeed;
-          vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
-          gl_Position = projectionMatrix * viewPosition;
-          gl_PointSize = clamp((0.8 + vAmplitude * 1.05) * uPixelRatio * (10.0 / -viewPosition.z), 0.5, 3.1);
-        }`,
-      fragmentShader: `
-        uniform float uTime;
-        uniform float uBelief;
-        varying float vAmplitude;
-        varying float vSeed;
-        void main() {
-          float radius = length(gl_PointCoord - 0.5) * 2.0;
-          if (radius > 1.0) discard;
-          float glow = exp(-radius * radius * 3.3);
-          float alpha = glow * pow(vAmplitude, 2.2) * (0.09 + 0.035 * vSeed) * (0.97 + 0.03 * cos(uTime * 2.4));
-          vec3 warm = mix(vec3(0.8, 0.38, 0.10), vec3(1.0, 0.70, 0.34), vAmplitude);
-          vec3 color = mix(warm, vec3(0.38, 0.73, 0.87), uBelief);
-          gl_FragColor = vec4(color, alpha);
-        }`,
+      blending,
+      premultipliedAlpha,
     });
-    this.scene.add(new THREE.Points(pointGeometry, pointMaterial));
 
-    const floorMaterial = new THREE.ShaderMaterial({
-      uniforms: this.fieldUniforms,
-      transparent: true,
-      depthWrite: false,
-      vertexShader: 'varying vec3 vPosition; varying vec2 vUv; void main(){vPosition=position; vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-      fragmentShader: `${FIELD_GLSL}
-        varying vec3 vPosition;
-        varying vec2 vUv;
-        void main() {
-          vec3 p = vec3(vUv.x * 6.0, 0.02, (1.0 - vUv.y) * 4.0);
-          float amplitude = field(p);
-          float grid = max(1.0 - smoothstep(0.002, 0.006, abs(fract(vUv.x * 6.0 + 0.5) - 0.5)), 1.0 - smoothstep(0.003, 0.009, abs(fract(vUv.y * 4.0 + 0.5) - 0.5)));
-          vec3 quiet = vec3(0.017, 0.040, 0.049);
-          vec3 peak = mix(vec3(0.66, 0.35, 0.12), vec3(0.25, 0.65, 0.81), uBelief);
-          vec3 color = mix(quiet, peak, pow(amplitude, 2.25));
-          color += vec3(0.014, 0.023, 0.024) * grid;
-          gl_FragColor = vec4(color, 0.94);
-        }`,
-    });
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.length, ROOM.width), floorMaterial);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.length, ROOM.width), surface(FIELD_FLOOR_FRAGMENT, {
+      uIntensity: { value: FLOOR.intensity * (plain ? PLAIN_DIM.floor : 1) },
+      uShade: { value: FLOOR.shade },
+      uGrid: { value: FLOOR.grid },
+      uLine: { value: new THREE.Color(FIELD.line) },
+    }, THREE.NormalBlending, true));
     floor.rotation.x = -Math.PI / 2;
-    floor.position.set(ROOM.length / 2, 0.016, ROOM.width / 2);
-    this.scene.add(floor);
+    floor.position.set(ROOM.length / 2, FLOOR.lift, ROOM.width / 2);
 
-    const curtainMaterial = new THREE.ShaderMaterial({
-      uniforms: this.fieldUniforms,
+    const particles = plain ? PARTICLES.plain : phone ? PARTICLES.phone : PARTICLES.full;
+    const points = new THREE.Points(particleGeometry(particles), new THREE.ShaderMaterial({
+      uniforms: { ...this.uniforms, uIntensity: { value: POINTS.intensity * (plain ? PLAIN_DIM.points : 1) }, uPointSize: { value: POINTS.size }, uMaxPointSize: { value: POINTS.maxSize }, uPixelRatio: this.pixelRatio, uViewScale: this.viewScale },
+      vertexShader: `${common}\n${FIELD_POINTS_VERTEX}`,
+      fragmentShader: `${common}\n${FIELD_POINTS_FRAGMENT}`,
       transparent: true,
-      side: THREE.DoubleSide,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
-      vertexShader: 'varying vec3 vWorld; varying vec2 vUv; void main(){vWorld=(modelMatrix*vec4(position,1.0)).xyz; vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-      fragmentShader: `${FIELD_GLSL}
-        varying vec3 vWorld;
-        varying vec2 vUv;
-        void main() {
-          float amplitude = field(vWorld);
-          float edge = 0.62 + 0.38 * sin(vUv.y * 3.14159);
-          float alpha = pow(amplitude, 2.55) * edge * 0.14;
-          vec3 color = mix(vec3(1.0, 0.53, 0.19), vec3(0.29, 0.69, 0.85), uBelief);
-          gl_FragColor = vec4(color, alpha);
-        }`,
-    });
-    for (let i = 0; i < 5; i++) {
-      const curtain = new THREE.Mesh(new THREE.PlaneGeometry(1, ROOM.height), curtainMaterial);
-      this.curtains.push(curtain);
-      this.scene.add(curtain);
+    }));
+
+    const glows: THREE.Object3D[] = [floor, points];
+    // A software renderer shades every pixel on the CPU, and the wall glow is the subtlest layer.
+    if (!plain) {
+      const wallMaterial = surface(FIELD_WALL_FRAGMENT, { uIntensity: { value: WALL.intensity } }, THREE.AdditiveBlending, false);
+      const backWall = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.length, ROOM.height), wallMaterial);
+      backWall.position.set(ROOM.length / 2, ROOM.height / 2, WALL.inset);
+      const sideWall = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.width, ROOM.height), wallMaterial);
+      sideWall.rotation.y = Math.PI / 2;
+      sideWall.position.set(WALL.inset, ROOM.height / 2, ROOM.width / 2);
+      glows.push(backWall, sideWall);
     }
-    this.alignCurtains();
+    for (const glow of glows) {
+      glow.layers.enable(BLOOM_LAYER);
+      glow.renderOrder = 1;
+    }
+
+    this.nodeLines = new THREE.LineSegments(lineGeometry(MAX_NODES * 8), new THREE.LineDashedMaterial({
+      color: FIELD.line, transparent: true, opacity: LINE_OPACITY.node, depthWrite: false, dashSize: 0.09, gapSize: 0.07,
+    }));
+    this.halfLine = new THREE.LineSegments(lineGeometry(6), new THREE.LineBasicMaterial({
+      color: FIELD.line, transparent: true, opacity: LINE_OPACITY.half, depthWrite: false,
+    }));
+    this.distanceLine = new THREE.Line(lineGeometry(2), new THREE.LineDashedMaterial({
+      color: FIELD.line, transparent: true, opacity: 0, depthWrite: false, dashSize: 0.09, gapSize: 0.07,
+    }));
+    for (const line of [this.nodeLines, this.halfLine, this.distanceLine]) line.renderOrder = 3;
+    scene.add(...glows, this.nodeLines, this.halfLine, this.distanceLine);
   }
 
-  private alignCurtains(): void {
-    const widthMode = this.view === 'physics' && this.mode.axis === 'width';
-    for (let i = 0; i < this.curtains.length; i++) {
-      const curtain = this.curtains[i];
-      const slice = (i + 0.5) / this.curtains.length;
-      curtain.rotation.y = widthMode ? Math.PI / 2 : 0;
-      curtain.scale.x = widthMode ? ROOM.width : ROOM.length;
-      curtain.position.set(widthMode ? ROOM.length * slice : ROOM.length / 2, ROOM.height / 2, widthMode ? ROOM.width / 2 : ROOM.width * slice);
-    }
+  update({ mode, coupling, response, view, speaker, mic }: FieldState): void {
+    const { uniforms } = this;
+    uniforms.uAxis.value.copy(AXIS_VECTORS[COORDINATE[mode.axis]]);
+    uniforms.uOrder.value = mode.order;
+    uniforms.uCoupling.value = coupling;
+    uniforms.uResponse.value = response;
+    uniforms.uSpeaker.value.set(speaker.x, speaker.y, speaker.z);
+    this.beliefGoal = view === 'belief' ? 1 : 0;
+    this.drawNodes(mode);
+    this.drawHalfWave(mode);
+    writeSegments(this.distanceLine.geometry, [[new THREE.Vector3(speaker.x, speaker.y, speaker.z), new THREE.Vector3(mic.x, mic.y, mic.z)]]);
   }
 
-  private rebuildNodeMarkers(): void {
-    for (const label of this.nodeLabels) {
-      this.labels.remove(label);
+  setSwing(playing: boolean): void {
+    this.swingGoal = playing ? 1 : 0;
+  }
+
+  // Points keep a world size, so the scale is CSS pixels per metre at one metre away.
+  setViewport(height: number, fov: number, pixelRatio: number): void {
+    this.viewScale.value = height / (2 * Math.tan(THREE.MathUtils.degToRad(fov / 2)));
+    this.pixelRatio.value = pixelRatio;
+  }
+
+  tick(delta: number): void {
+    this.belief = approach(this.belief, this.beliefGoal, delta / FADE_SECONDS);
+    this.swing = approach(this.swing, this.swingGoal, delta / SWING_EASE_SECONDS);
+    if (this.swing > 0) this.phase = (this.phase + delta * SWING_HZ) % 1;
+    this.uniforms.uBelief.value = this.belief;
+    this.uniforms.uSwing.value = Math.sin(this.phase * Math.PI * 2) * this.swing;
+    fade(this.nodeLines, LINE_OPACITY.node * (1 - this.belief));
+    fade(this.halfLine, LINE_OPACITY.half * (1 - this.belief));
+    fade(this.distanceLine, LINE_OPACITY.distance * this.belief);
+  }
+
+  private drawNodes(mode: Mode): void {
+    const segments: [THREE.Vector3, THREE.Vector3][] = [];
+    for (const at of nodePlanes(mode)) {
+      const corners = planeOutline(mode, at);
+      corners.forEach((corner, index) => segments.push([corner, corners[(index + 1) % corners.length]]));
     }
-    this.nodeLabels.length = 0;
-    for (const child of this.nodeGroup.children) {
-      const line = child as THREE.LineSegments;
-      line.geometry?.dispose();
-      if (line.material) (Array.isArray(line.material) ? line.material : [line.material]).forEach((material) => material.dispose());
-    }
-    this.nodeGroup.clear();
-    const { axis, order } = this.mode;
-    for (let i = 0; i < order; i++) {
-      const coordinate = (2 * i + 1) / (2 * order);
-      let points: THREE.Vector3[];
-      let labelPosition: THREE.Vector3;
-      if (axis === 'length') {
-        const x = coordinate * ROOM.length;
-        points = [new THREE.Vector3(x, 0.035, 0), new THREE.Vector3(x, 0.035, ROOM.width), new THREE.Vector3(x, ROOM.height, ROOM.width), new THREE.Vector3(x, ROOM.height, 0), new THREE.Vector3(x, 0.035, 0)];
-        labelPosition = new THREE.Vector3(x, ROOM.height + 0.14, ROOM.width * 0.63);
-      } else if (axis === 'width') {
-        const z = coordinate * ROOM.width;
-        points = [new THREE.Vector3(0, 0.035, z), new THREE.Vector3(ROOM.length, 0.035, z), new THREE.Vector3(ROOM.length, ROOM.height, z), new THREE.Vector3(0, ROOM.height, z), new THREE.Vector3(0, 0.035, z)];
-        labelPosition = new THREE.Vector3(ROOM.length * 0.57, ROOM.height + 0.14, z);
-      } else {
-        const y = coordinate * ROOM.height;
-        points = [new THREE.Vector3(0, y, 0), new THREE.Vector3(ROOM.length, y, 0), new THREE.Vector3(ROOM.length, y, ROOM.width), new THREE.Vector3(0, y, ROOM.width), new THREE.Vector3(0, y, 0)];
-        labelPosition = new THREE.Vector3(ROOM.length + 0.13, y, ROOM.width * 0.62);
+    writeSegments(this.nodeLines.geometry, segments);
+  }
+
+  private drawHalfWave(mode: Mode): void {
+    const { start, end, tick } = halfWaveLine(mode);
+    writeSegments(this.halfLine.geometry, [
+      [start, end],
+      [start.clone().sub(tick), start.clone().add(tick)],
+      [end.clone().sub(tick), end.clone().add(tick)],
+    ]);
+  }
+}
+
+function approach(value: number, goal: number, step: number): number {
+  return value < goal ? Math.min(goal, value + step) : Math.max(goal, value - step);
+}
+
+function fade(line: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial | THREE.LineDashedMaterial>, opacity: number): void {
+  line.material.opacity = opacity;
+  line.visible = opacity > 0.005;
+}
+
+function lineGeometry(vertices: number): THREE.BufferGeometry {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices * 3), 3).setUsage(THREE.DynamicDrawUsage));
+  geometry.setAttribute('lineDistance', new THREE.BufferAttribute(new Float32Array(vertices), 1).setUsage(THREE.DynamicDrawUsage));
+  geometry.setDrawRange(0, 0);
+  return geometry;
+}
+
+// Rewriting a fixed buffer in place means mode changes never allocate geometry.
+function writeSegments(geometry: THREE.BufferGeometry, segments: readonly (readonly [THREE.Vector3, THREE.Vector3])[]): void {
+  const position = geometry.getAttribute('position') as THREE.BufferAttribute;
+  const distance = geometry.getAttribute('lineDistance') as THREE.BufferAttribute;
+  segments.forEach(([start, end], index) => {
+    position.setXYZ(index * 2, start.x, start.y, start.z);
+    position.setXYZ(index * 2 + 1, end.x, end.y, end.z);
+    distance.setX(index * 2, 0);
+    distance.setX(index * 2 + 1, start.distanceTo(end));
+  });
+  position.needsUpdate = true;
+  distance.needsUpdate = true;
+  geometry.setDrawRange(0, segments.length * 2);
+  geometry.computeBoundingSphere();
+}
+
+// A fixed seed keeps the jittered grid identical on every load.
+function particleGeometry(count: number): THREE.BufferGeometry {
+  const cell = Math.cbrt((ROOM.length * ROOM.width * ROOM.height) / count);
+  const nx = Math.round(ROOM.length / cell);
+  const ny = Math.round(ROOM.height / cell);
+  const nz = Math.round(ROOM.width / cell);
+  const positions = new Float32Array(nx * ny * nz * 3);
+  const seeds = new Float32Array(nx * ny * nz);
+  let seed = 48271;
+  const random = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  let index = 0;
+  for (let x = 0; x < nx; x++) {
+    for (let y = 0; y < ny; y++) {
+      for (let z = 0; z < nz; z++) {
+        positions[index * 3] = ((x + random()) / nx) * ROOM.length;
+        positions[index * 3 + 1] = ((y + random()) / ny) * ROOM.height;
+        positions[index * 3 + 2] = ((z + random()) / nz) * ROOM.width;
+        seeds[index++] = random();
       }
-      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineDashedMaterial({ color: 0x83aeb5, transparent: true, opacity: 0.42, dashSize: 0.07, gapSize: 0.06 }));
-      line.computeLineDistances();
-      this.nodeGroup.add(line);
-      if (order <= 3 || i === Math.floor(order / 2)) this.nodeLabels.push(this.labels.add('node', 'NODE <span style="opacity:.5">/ QUIET</span>', labelPosition));
     }
-    const antinodePosition = axis === 'height' ? new THREE.Vector3(ROOM.length * 0.15, ROOM.height + 0.16, ROOM.width * 0.8) : axis === 'width' ? new THREE.Vector3(ROOM.length * 0.68, ROOM.height + 0.15, ROOM.width - 0.1) : new THREE.Vector3(ROOM.length - 0.16, ROOM.height + 0.14, ROOM.width * 0.63);
-    this.nodeLabels.push(this.labels.add('antinode', 'ANTINODE <span style="opacity:.5">/ LOUD</span>', antinodePosition));
   }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 1));
+  return geometry;
 }
