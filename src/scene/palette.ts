@@ -16,6 +16,10 @@ export const MATERIALS = {
   brass: 0xb38e55,
   engraving: 0x3b2d17,
   engravingEdge: 0xe7cf9c,
+  cabinet: TOKENS.raised,
+  baffle: TOKENS.surface,
+  rubber: TOKENS.ink,
+  steel: TOKENS.muted,
 } as const;
 
 export const LIGHTS = {
@@ -27,4 +31,12 @@ export const STUDIO = {
   floor: TOKENS.ink,
   horizon: TOKENS.raised,
   sky: TOKENS.ink,
+} as const;
+
+export const FIELD = {
+  actually: TOKENS.swatch,
+  youdThink: TOKENS.paper,
+  shade: TOKENS.ink,
+  line: TOKENS.paper,
+  glow: TOKENS.swatch,
 } as const;

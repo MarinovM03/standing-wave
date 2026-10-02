@@ -10,7 +10,7 @@ export const AXES: readonly Axis[] = ['length', 'width', 'height'];
 export const COORDINATE = { length: 'x', width: 'z', height: 'y' } as const satisfies Record<Axis, keyof Position>;
 
 const MIC_MARGIN = 0.08;
-// The cabinet's half-diagonal is 0.21 m, so 0.25 m keeps it off the walls at any angle.
+// The cabinet reaches at most 0.23 m from its driver, so 0.25 m keeps it off the walls at any angle.
 const SPEAKER_MARGIN = 0.25;
 
 export const SPEAKER: Position = { x: SPEAKER_MARGIN, y: 0.35, z: SPEAKER_MARGIN };
