@@ -213,6 +213,8 @@ test('mic pressure cue, relative level and real audio gain stay in sync', async 
   await expect(page.locator('#sound-button')).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('#sound-label')).toHaveText('Sound off');
   await expect.poll(async () => (await audio()).gain).toBe(0);
+  // The app suspends the context again 180 ms after muting, and Chromium never settles a resume that a suspend overtakes.
+  await page.waitForTimeout(250);
   await page.evaluate(() => (window as Window & { toneProbe: AudioProbe }).toneProbe.contexts.at(-1)!.resume());
   expect((await audio()).gain).toBe(0);
   await expect(page.locator('#sound-button')).toHaveAttribute('aria-pressed', 'false');
