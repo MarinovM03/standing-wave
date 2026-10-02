@@ -2,10 +2,16 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { ROOM, type Position } from './model/room';
 import { getNearestMode, sampleField, type ViewMode, type Mode } from './model/acoustics';
-import { addRoomArchitecture, addRoomLighting, addRoomSpeaker } from './scene/architecture';
+import { addRoomDimensions, addRoomSpeaker } from './scene/architecture';
+import { addContactShadows, type ContactShadows } from './scene/contact';
+import { addStudio, type Studio } from './scene/environment';
 import { PressureField } from './scene/field';
 import { SceneLabels } from './scene/labels';
 import { ListenerMarker } from './scene/listener';
+import { addRoomModel } from './scene/model';
+import { addMakerPlate, type MakerPlate } from './scene/plate';
+import { createPost, type Post } from './scene/post';
+import { MSAA_SAMPLES, createRenderer, pixelRatio, type Tier } from './scene/renderer';
 
 type SceneState = {
   frequency: number;
@@ -24,8 +30,13 @@ export class RoomScene {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(39, 1, 0.05, 100);
   private readonly renderer: THREE.WebGLRenderer;
+  private readonly tier: Tier;
+  private readonly post: Post;
+  private readonly studio: Studio;
+  private readonly plate: MakerPlate;
+  private readonly contact: ContactShadows;
   private readonly controls: OrbitControls;
-  private readonly clock = new THREE.Clock();
+  private readonly timer = new THREE.Timer();
   private readonly listener: ListenerMarker;
   private readonly labels: SceneLabels;
   private readonly field: PressureField;
@@ -64,12 +75,9 @@ export class RoomScene {
   constructor(container: HTMLElement, onListenerMove: (position: Position) => void) {
     this.container = container;
     this.onListenerMove = onListenerMove;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-    this.renderer.setClearColor(0x070e11, 0);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.coarsePointer.matches ? 1.5 : 1.75));
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    const { renderer, tier } = createRenderer();
+    this.renderer = renderer;
+    this.tier = tier;
     this.renderer.domElement.className = 'room-canvas';
     this.renderer.domElement.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;';
     this.renderer.domElement.setAttribute('aria-label', 'Interactive acoustic room');
@@ -80,13 +88,18 @@ export class RoomScene {
 
     this.labels = new SceneLabels(container);
 
-    addRoomLighting(this.scene);
+    const model = addRoomModel(this.scene, this.tier);
+    this.studio = addStudio(this.scene, this.renderer, model, this.tier);
+    this.plate = addMakerPlate(this.scene, this.renderer, model, this.tier);
 
-    addRoomArchitecture(this.scene, this.labels);
+    addRoomDimensions(this.scene, this.labels);
     this.field = new PressureField(this.scene, this.labels, this.mode, this.state.view);
     addRoomSpeaker(this.scene, this.labels);
 
     this.listener = new ListenerMarker(this.scene, this.labels);
+    this.contact = addContactShadows(this.scene, model, this.state.listener);
+    this.post = createPost(this.renderer, this.scene, this.camera, this.tier, MSAA_SAMPLES);
+    this.timer.connect(document);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = !this.reducedMotion;
@@ -125,6 +138,7 @@ export class RoomScene {
     this.mode = getNearestMode(next.frequency);
     this.field.update(next.frequency, this.mode, next.view, next.showNodes);
     this.listener.update(next.listener, sampleField(next.listener, next.frequency, next.view, this.mode));
+    this.contact.setMic(next.listener);
   }
 
   setCinematic(enabled: boolean): void {
@@ -160,10 +174,10 @@ export class RoomScene {
     this.topView = false;
     this.cinematic = false;
     const target = new THREE.Vector3(ROOM.length / 2, 1.12, ROOM.width / 2);
-    const distance = this.width < 800 ? Math.max(9.8, 11.5 / (this.width / this.height)) : 12.1;
+    const distance = this.width < 800 ? Math.max(11.6, 13.6 / (this.width / this.height)) : 13.6;
     this.controls.maxDistance = Math.max(24, distance * 1.6);
     this.controls.target.copy(target);
-    this.camera.position.copy(target).add(new THREE.Vector3(1.05, 0.77, 1.22).normalize().multiplyScalar(distance));
+    this.camera.position.copy(target).add(new THREE.Vector3(0.83, 0.77, 1.44).normalize().multiplyScalar(distance));
     this.controls.update();
   }
 
@@ -202,6 +216,11 @@ export class RoomScene {
       const materials = renderable.material ? (Array.isArray(renderable.material) ? renderable.material : [renderable.material]) : [];
       for (const material of materials) if (!disposedMaterials.has(material)) { material.dispose(); disposedMaterials.add(material); }
     });
+    this.contact.dispose();
+    this.plate.dispose();
+    this.studio.dispose();
+    this.post.dispose();
+    this.timer.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
     this.labels.dispose();
@@ -217,9 +236,8 @@ export class RoomScene {
     this.narrowViewport = isNarrow;
     this.width = Math.max(1, rect.width);
     this.height = Math.max(1, rect.height);
-    this.renderer.setSize(this.width, this.height, false);
     const compactInput = isNarrow || this.coarsePointer.matches;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, compactInput ? 1.5 : 1.75));
+    this.post.setSize(this.width, this.height, pixelRatio(this.tier, this.coarsePointer.matches));
     this.field.setPixelRatio(this.renderer.getPixelRatio());
     this.listener.setCompactViewport(compactInput);
     this.camera.aspect = this.width / this.height;
@@ -369,10 +387,11 @@ export class RoomScene {
 
   private handleKeyUp = (event: KeyboardEvent): void => { this.pressed.delete(event.key.toLowerCase()); this.shiftPressed = event.shiftKey; };
 
-  private render = (): void => {
+  private render = (timestamp?: number): void => {
     if (this.disposed) return;
     this.frame = requestAnimationFrame(this.render);
-    const delta = Math.min(this.clock.getDelta(), 0.05);
+    this.timer.update(timestamp);
+    const delta = Math.min(this.timer.getDelta(), 0.05);
     if (document.hidden) return;
     // The app defaults motion off for reduced-motion preferences; an explicit play
     // or cinematic command remains a working opt-in rather than a dead control.
@@ -402,7 +421,8 @@ export class RoomScene {
       this.controls.target.add(step);
     }
     this.controls.update();
-    this.renderer.render(this.scene, this.camera);
+    this.post.setDepthOfField(this.cinematic, this.camera.position.distanceTo(this.controls.target));
+    this.post.render(delta);
     this.listener.project(this.camera, this.width, this.height);
     this.labels.project(this.camera, this.width, this.height, this.topView, this.state.showNodes && this.state.view === 'physics');
   };
