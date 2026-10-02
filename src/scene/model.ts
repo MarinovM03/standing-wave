@@ -6,7 +6,7 @@ import { MATERIALS, TOKENS } from './palette';
 import type { Tier } from './renderer';
 
 const WALL = 0.12;
-const SLAB = 0.06;
+export const SLAB = 0.06;
 const PLINTH = { margin: 0.6, height: 0.62, bevel: 0.05 };
 const EDGE_OPACITY = 0.55;
 
