@@ -611,7 +611,3 @@
     animation: none !important;
   }
 }
-
-.ui-hidden .sw-scene-labels {
-  opacity: 0;
-}

@@ -1,0 +1,80 @@
+.callouts {
+  --paper: #f0ebdf;
+  --muted: #a39d90;
+  --leader: rgba(240, 235, 223, 0.6);
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+  transition: opacity 200ms ease-out;
+}
+
+.ui-hidden .callouts {
+  opacity: 0;
+}
+
+.callout {
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border: 1px solid var(--paper);
+  border-radius: 50%;
+  will-change: transform;
+  transition: opacity 200ms ease-out, visibility 0s linear 200ms;
+}
+
+.callout[data-state='hidden'] {
+  visibility: hidden;
+  opacity: 0;
+}
+
+.callout[data-state='shown'] {
+  transition-delay: 0s;
+}
+
+.callout__leader {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: 1px;
+  margin-top: -0.5px;
+  background: var(--leader);
+  transform-origin: 0 50%;
+}
+
+.callout__label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: space-between;
+  gap: 1ch;
+  padding: 4px 6px;
+  overflow: hidden;
+  font: 500 11px/14px 'JetBrains Mono', ui-monospace, monospace;
+  white-space: nowrap;
+  color: var(--paper);
+  background: rgba(15, 14, 12, 0.62);
+  border-radius: 3px;
+}
+
+.callout__name {
+  color: var(--muted);
+}
+
+.callout__value {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px), (max-height: 500px) {
+  .callout__label {
+    font-size: 10px;
+    line-height: 13px;
+  }
+}
