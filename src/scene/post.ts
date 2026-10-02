@@ -12,11 +12,13 @@ import { FINISH_SHADER } from './shaders';
 
 export const BLOOM_LAYER = 1;
 
-const BLOOM = { strength: 0.9, radius: 0.45, threshold: 1 };
+const BLOOM = { strength: 0.9, radius: 0.45, threshold: 1, knee: 0.6 };
 const DEPTH_OF_FIELD = { aperture: 0.0012, maxblur: 0.006 };
 const GRAIN_PERIOD = 64;
 
 export type Post = {
+  // Program variants depend on the render target, so this compiles for the target the scene is really drawn into.
+  compile(): Promise<unknown>;
   render(delta: number): void;
   setSize(width: number, height: number, pixelRatio: number): void;
   setDepthOfField(enabled: boolean, focus: number): void;
@@ -26,6 +28,7 @@ export type Post = {
 export function createPost(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, tier: Tier, samples: number): Post {
   if (tier === 'plain') {
     return {
+      compile: () => compileAsync(renderer, scene, camera),
       render: () => renderer.render(scene, camera),
       setSize: (width, height, pixelRatio) => {
         renderer.setPixelRatio(pixelRatio);
@@ -47,6 +50,13 @@ export function createPost(renderer: THREE.WebGLRenderer, scene: THREE.Scene, ca
   let frame = 0;
 
   return {
+    compile: () => {
+      const target = renderer.getRenderTarget();
+      renderer.setRenderTarget(composer.readBuffer);
+      const ready = compileAsync(renderer, scene, camera);
+      renderer.setRenderTarget(target);
+      return ready;
+    },
     render: (delta) => {
       finish.uniforms.uFrame.value = frame++ % GRAIN_PERIOD;
       composer.render(delta);
@@ -67,6 +77,11 @@ export function createPost(renderer: THREE.WebGLRenderer, scene: THREE.Scene, ca
       composer.dispose();
     },
   };
+}
+
+// Without the extension compileAsync only polls, and three warns that it's missing.
+function compileAsync(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera): Promise<unknown> {
+  return renderer.extensions.has('KHR_parallel_shader_compile') ? renderer.compileAsync(scene, camera) : Promise.resolve();
 }
 
 // Points and additive glows don't write depth, so they must not blur as if they were solid.
@@ -106,6 +121,8 @@ class SelectiveBloomPass extends Pass {
   constructor(private readonly scene: THREE.Scene, private readonly camera: THREE.Camera) {
     super();
     this.needsSwap = false;
+    // A soft knee lets broad glows like the floor bloom in proportion to how far they pass the threshold.
+    (this.bloom.highPassUniforms as Record<string, THREE.IUniform<number>>).smoothWidth.value = BLOOM.knee;
   }
 
   override setSize(width: number, height: number): void {
@@ -151,6 +168,7 @@ class SelectiveBloomPass extends Pass {
       if (object.layers.isEnabled(BLOOM_LAYER)) return;
       const mesh = object as THREE.Mesh;
       const materials = mesh.isMesh ? [mesh.material].flat() : [];
+      if (mesh.isMesh && materials.every((material) => !material.visible)) return;
       if (mesh.isMesh && materials.every((material) => !material.transparent)) {
         this.swapped.set(mesh, mesh.material);
         mesh.material = this.occluder;

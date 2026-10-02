@@ -6,10 +6,8 @@ type InterfaceState = Readonly<{
   frequency: number;
   listener: Readonly<Position>;
   view: ViewMode;
-  showNodes: boolean;
   animate: boolean;
   cinematic: boolean;
-  topView: boolean;
   sound: boolean;
 }>;
 
@@ -39,10 +37,9 @@ export function createExperimentView(root: HTMLElement) {
     quiet: element<HTMLButtonElement>('quiet-button'),
     peak: element<HTMLButtonElement>('peak-button'),
     sound: element<HTMLButtonElement>('sound-button'),
-    nodes: element<HTMLButtonElement>('nodes-button'),
     motion: element<HTMLButtonElement>('motion-button'),
     camera: element<HTMLButtonElement>('camera-button'),
-    top: element<HTMLButtonElement>('top-button'),
+    speakerMiddle: element<HTMLButtonElement>('speaker-middle'),
     reset: element<HTMLButtonElement>('reset-button'),
     restore: element<HTMLButtonElement>('restore-ui'),
     how: element<HTMLButtonElement>('how-button'),
@@ -144,14 +141,12 @@ export function createExperimentView(root: HTMLElement) {
     display.sound.textContent = soundPending ? 'Starting sound…' : state.sound ? 'Sound on' : 'Sound off';
     controls.sound.setAttribute('aria-label', soundPending ? 'Starting sound…' : state.sound ? 'Sound on. Mute sound' : 'Sound off. Enable sound');
     controls.sound.title = soundPending ? 'Starting sound…' : state.sound ? 'Mute sound' : 'Enable sound';
-    controls.nodes.setAttribute('aria-pressed', String(state.showNodes));
     controls.motion.setAttribute('aria-pressed', String(!state.animate));
     const motionAction = state.animate ? 'Pause field animation' : 'Play field animation';
     controls.motion.setAttribute('aria-label', motionAction);
     controls.motion.title = motionAction;
     controls.motion.textContent = state.animate ? 'Ⅱ' : '▷';
     controls.camera.setAttribute('aria-pressed', String(state.cinematic));
-    controls.top.setAttribute('aria-pressed', String(state.topView));
   }
 
   function setHidden(hidden: boolean) {

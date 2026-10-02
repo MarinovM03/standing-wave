@@ -13,7 +13,7 @@ const FONT_FAMILY = '"JetBrains Mono", monospace';
 const WHITE = new THREE.Color(1, 1, 1);
 const BLACK = new THREE.Color(0, 0, 0);
 
-export type MakerPlate = { dispose(): void };
+export type MakerPlate = { corners: THREE.Vector3[]; dispose(): void };
 
 export function addMakerPlate(scene: THREE.Scene, renderer: THREE.WebGLRenderer, model: RoomModel, tier: Tier): MakerPlate {
   const canvas = document.createElement('canvas');
@@ -31,7 +31,11 @@ export function addMakerPlate(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
   const plate = new THREE.Mesh(new RoundedBoxGeometry(PLATE.width, PLATE.height, PLATE.depth, 2, 0.008), [rim, rim, rim, rim, face, rim]);
   const { centre, depth } = model.plinth;
   plate.position.set(centre.x + PLATE.offset, centre.y, centre.z + depth / 2 + PLATE.depth / 2);
+  plate.name = 'maker-plate';
   scene.add(plate);
+  const front = plate.position.z + PLATE.depth / 2;
+  const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([x, y]) =>
+    new THREE.Vector3(plate.position.x + (x * PLATE.width) / 2, plate.position.y + (y * PLATE.height) / 2, front));
 
   let disposed = false;
   void Promise.all([document.fonts.load(`700 100px ${FONT_FAMILY}`), document.fonts.load(`600 100px ${FONT_FAMILY}`)])
@@ -43,6 +47,7 @@ export function addMakerPlate(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
     });
 
   return {
+    corners,
     dispose: () => {
       disposed = true;
       texture.dispose();

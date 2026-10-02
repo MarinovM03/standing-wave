@@ -1,9 +1,10 @@
-import { RoomScene } from './scene';
+import { Stage } from './scene/stage';
 import { ToneAudio } from './audio';
-import { ROOM } from './model/room';
+import { COORDINATE, ROOM, SPEAKER, SPEAKER_MIDDLE } from './model/room';
 import type { Axis, Position } from './model/room';
-import { getNearestMode, modeForAxis, sampleField, relativeDb, wavelength } from './model/acoustics';
-import type { ViewMode } from './model/acoustics';
+import { antinodePlanes, coupling, getNearestMode, halfWavelength, modeForAxis, nodePlanes, sampleField, relativeDb, wavelength } from './model/acoustics';
+import type { Mode, ViewMode } from './model/acoustics';
+import { createCallouts } from './ui/callouts';
 import { createExperimentView } from './ui/view';
 
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -12,11 +13,10 @@ const initialListener: Position = { x: 4.9, y: 1.2, z: 2.75 };
 const state = {
   frequency: initialFrequency,
   listener: { ...initialListener },
+  speaker: { ...SPEAKER },
   view: 'physics' as ViewMode,
-  showNodes: true,
   animate: !reducedMotion.matches,
   cinematic: false,
-  topView: false,
   sound: false,
   hidden: false,
 };
@@ -24,17 +24,37 @@ const state = {
 const view = createExperimentView(document.querySelector<HTMLDivElement>('#app')!);
 const { controls } = view;
 const sound = new ToneAudio();
+const callouts = createCallouts(controls.scene);
 const events = new AbortController();
-let room: RoomScene | undefined;
+let room: Stage | undefined;
 let soundPending = false;
 let disposed = false;
 
+function calloutReadings(mode: Mode, amplitude: number) {
+  const { listener, speaker, frequency } = state;
+  const antinode = { ...listener, [COORDINATE[mode.axis]]: antinodePlanes(mode).at(-1)! };
+  return {
+    amplitude,
+    micDb: relativeDb(amplitude),
+    speaker: state.view === 'belief' ? 1 : coupling(speaker, mode),
+    node: nodePlanes(mode)[0],
+    antinodeDb: relativeDb(sampleField(antinode, frequency, 'physics', mode, speaker)),
+    half: halfWavelength(mode),
+    distance: Math.hypot(listener.x - speaker.x, listener.y - speaker.y, listener.z - speaker.z),
+  };
+}
+
+function stageState(amplitude: number) {
+  return { frequency: state.frequency, mic: state.listener, speaker: state.speaker, view: state.view, swing: state.animate, level: amplitude };
+}
+
 function update() {
   const mode = getNearestMode(state.frequency);
-  const amplitude = sampleField(state.listener, state.frequency, state.view, mode);
+  const amplitude = sampleField(state.listener, state.frequency, state.view, mode, state.speaker);
   view.render(state, { mode, amplitude, db: relativeDb(amplitude), wavelength: wavelength(state.frequency) }, soundPending);
+  callouts.setReadings(state.view, calloutReadings(mode, amplitude));
   sound.update(state.frequency, amplitude);
-  room?.setState(state);
+  room?.setState(stageState(amplitude));
 }
 
 function setFrequency(value: number) {
@@ -53,11 +73,10 @@ function reset() {
   Object.assign(state, {
     frequency: initialFrequency,
     listener: { ...initialListener },
+    speaker: { ...SPEAKER },
     view: 'physics',
-    showNodes: true,
     animate: !reducedMotion.matches,
     cinematic: false,
-    topView: false,
   });
   room?.setCinematic(false);
   room?.resetCamera();
@@ -67,7 +86,6 @@ function reset() {
 
 function toggleCinematic() {
   state.cinematic = !state.cinematic;
-  state.topView = false;
   room?.setCinematic(state.cinematic);
   update();
 }
@@ -129,19 +147,13 @@ sound.onStateChange = enabled => {
   state.sound = enabled;
   update();
 };
-controls.nodes.addEventListener('click', () => {
-  state.showNodes = !state.showNodes;
-  update();
-});
 controls.motion.addEventListener('click', () => {
   state.animate = !state.animate;
   update();
 });
 controls.camera.addEventListener('click', toggleCinematic);
-controls.top.addEventListener('click', () => {
-  state.topView = !state.topView;
-  state.cinematic = false;
-  room?.setTopView(state.topView);
+controls.speakerMiddle.addEventListener('click', () => {
+  state.speaker = { ...SPEAKER_MIDDLE };
   update();
 });
 controls.reset.addEventListener('click', reset);
@@ -190,18 +202,24 @@ document.addEventListener('keydown', event => {
 
 update();
 try {
-  room = new RoomScene(controls.scene, position => {
-    state.listener = { ...position };
-    update();
-  });
-  room.onCameraInteraction = () => {
-    if (state.cinematic || state.topView) {
-      state.cinematic = false;
-      state.topView = false;
+  room = new Stage(controls.scene, stageState(sampleField(state.listener, state.frequency, state.view, undefined, state.speaker)), {
+    onMicMove: position => {
+      state.listener = position;
       update();
-    }
-  };
-  room.onListenerDragChange = view.setDragging;
+    },
+    onSpeakerMove: position => {
+      state.speaker = position;
+      update();
+    },
+    onDragChange: target => view.setDragging(target === 'mic'),
+    onCameraInteraction: () => {
+      if (state.cinematic) {
+        state.cinematic = false;
+        update();
+      }
+    },
+    onFrame: callouts.place,
+  });
   update();
 } catch (error) {
   console.error('Unable to initialize the room renderer', error);
@@ -212,11 +230,8 @@ if (import.meta.hot) import.meta.hot.dispose(() => {
   disposed = true;
   events.abort();
   sound.onStateChange = undefined;
-  if (room) {
-    room.onCameraInteraction = undefined;
-    room.onListenerDragChange = undefined;
-    room.dispose();
-  }
+  room?.dispose();
+  callouts.dispose();
   sound.dispose();
   view.dispose();
 });

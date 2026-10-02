@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ROOM, SPEAKER, type Position } from '../model/room';
+import { ROOM, type Position } from '../model/room';
 import type { RoomModel } from './model';
 
 const JUNCTION = 0.45;
@@ -8,6 +8,7 @@ const IN_ROOM_ORDER = 2;
 
 export type ContactShadows = {
   setMic(position: Position): void;
+  setSpeaker(x: number, z: number): void;
   dispose(): void;
 };
 
@@ -33,8 +34,7 @@ export function addContactShadows(scene: THREE.Scene, model: RoomModel, mic: Pos
   sideWall.position.set(0.003, JUNCTION / 2, ROOM.width / 2);
 
   const blobMaterial = shadowMaterial(blobTexture);
-  const speaker = flat(new THREE.PlaneGeometry(0.8, 0.8), blobMaterial);
-  speaker.position.set(SPEAKER.x, IN_ROOM_LIFT + 0.001, SPEAKER.z);
+  const speaker = flat(new THREE.PlaneGeometry(0.62, 0.62), blobMaterial);
   const micBlob = flat(new THREE.PlaneGeometry(0.62, 0.62), blobMaterial);
   micBlob.position.set(mic.x, IN_ROOM_LIFT + 0.001, mic.z);
 
@@ -43,6 +43,7 @@ export function addContactShadows(scene: THREE.Scene, model: RoomModel, mic: Pos
 
   return {
     setMic: (position) => micBlob.position.set(position.x, IN_ROOM_LIFT + 0.001, position.z),
+    setSpeaker: (x, z) => speaker.position.set(x, IN_ROOM_LIFT + 0.001, z),
     dispose: () => {
       for (const texture of textures) texture.dispose();
     },
@@ -69,6 +70,7 @@ function canvasTexture(width: number, height: number, draw: (context: CanvasRend
 
 function softRect(): THREE.CanvasTexture {
   return canvasTexture(256, 256, (context) => {
+    // Safari keeps context.filter behind a flag, so the blur comes from the shadow of a shape drawn off-canvas.
     context.shadowColor = 'rgba(0, 0, 0, 0.8)';
     context.shadowBlur = 30;
     context.shadowOffsetX = 1000;
