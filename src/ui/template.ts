@@ -75,7 +75,7 @@ export const experimentMarkup = `
         </div>
         <div class="scene-tools">
           <button id="speaker-middle" class="tool-button" title="Move the speaker to the middle of the room">Speaker middle</button>
-          <button id="motion-button" class="icon-button" aria-label="Pause field animation" aria-pressed="false" title="Pause field animation">Ⅱ</button>
+          <button id="play" class="icon-button" aria-label="Play note" aria-pressed="false" title="Play note · Space">▷</button>
           <button id="camera-button" class="icon-button" aria-label="Toggle cinematic camera" aria-pressed="false" title="Cinematic camera · C">${cameraIcon}</button>
           <button id="reset-button" class="icon-button" aria-label="Reset experiment" title="Reset experiment · R">↺</button>
         </div>

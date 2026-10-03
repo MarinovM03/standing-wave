@@ -4,9 +4,9 @@ import { experimentMarkup } from './template';
 
 type InterfaceState = Readonly<{
   frequency: number;
-  listener: Readonly<Position>;
+  mic: Readonly<Position>;
   view: ViewMode;
-  animate: boolean;
+  playing: boolean;
   cinematic: boolean;
   sound: boolean;
 }>;
@@ -37,7 +37,7 @@ export function createExperimentView(root: HTMLElement) {
     quiet: element<HTMLButtonElement>('quiet-button'),
     peak: element<HTMLButtonElement>('peak-button'),
     sound: element<HTMLButtonElement>('sound-button'),
-    motion: element<HTMLButtonElement>('motion-button'),
+    play: element<HTMLButtonElement>('play'),
     camera: element<HTMLButtonElement>('camera-button'),
     speakerMiddle: element<HTMLButtonElement>('speaker-middle'),
     reset: element<HTMLButtonElement>('reset-button'),
@@ -91,9 +91,9 @@ export function createExperimentView(root: HTMLElement) {
     display.listenerCard.dataset.pressure = quiet ? 'quiet' : amplitude > .72 ? 'hot' : 'mid';
     display.meter.setAttribute('aria-valuetext', `${db.toFixed(1)} decibels relative; ${display.levelStatus.textContent.toLowerCase()}`);
     display.listenerCard.style.setProperty('--amplitude', amplitude.toFixed(3));
-    display.position.textContent = `${state.listener.x.toFixed(1)} / ${state.listener.z.toFixed(1)} / ${state.listener.y.toFixed(1)} m`;
-    heightRange.value = String(state.listener.y);
-    display.height.textContent = `${state.listener.y.toFixed(2)} m`;
+    display.position.textContent = `${state.mic.x.toFixed(1)} / ${state.mic.z.toFixed(1)} / ${state.mic.y.toFixed(1)} m`;
+    heightRange.value = String(state.mic.y);
+    display.height.textContent = `${state.mic.y.toFixed(2)} m`;
 
     display.indices.textContent = `(${mode.indices.join(', ')})`;
     display.modeName.textContent = `${mode.axis[0].toUpperCase() + mode.axis.slice(1)} · ${mode.frequency.toFixed(1)} Hz`;
@@ -136,16 +136,15 @@ export function createExperimentView(root: HTMLElement) {
     }
 
     controls.sound.setAttribute('aria-pressed', String(state.sound));
-    controls.sound.disabled = soundPending;
     controls.sound.setAttribute('aria-busy', String(soundPending));
     display.sound.textContent = soundPending ? 'Starting sound…' : state.sound ? 'Sound on' : 'Sound off';
     controls.sound.setAttribute('aria-label', soundPending ? 'Starting sound…' : state.sound ? 'Sound on. Mute sound' : 'Sound off. Enable sound');
     controls.sound.title = soundPending ? 'Starting sound…' : state.sound ? 'Mute sound' : 'Enable sound';
-    controls.motion.setAttribute('aria-pressed', String(!state.animate));
-    const motionAction = state.animate ? 'Pause field animation' : 'Play field animation';
-    controls.motion.setAttribute('aria-label', motionAction);
-    controls.motion.title = motionAction;
-    controls.motion.textContent = state.animate ? 'Ⅱ' : '▷';
+    controls.play.setAttribute('aria-pressed', String(state.playing));
+    const playAction = state.playing ? 'Stop note' : 'Play note';
+    controls.play.setAttribute('aria-label', playAction);
+    controls.play.title = `${playAction} · Space`;
+    controls.play.textContent = state.playing ? '■' : '▷';
     controls.camera.setAttribute('aria-pressed', String(state.cinematic));
   }
 
