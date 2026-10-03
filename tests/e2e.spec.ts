@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-type AudioProbe = { contexts: AudioContext[]; oscillators: OscillatorNode[]; gains: GainNode[] };
+type AudioProbe = { contexts: AudioContext[]; oscillators: OscillatorNode[]; gains: GainNode[]; overtaken?: number };
 
 let pageErrors: string[];
 test.beforeEach(async ({ page }) => {
@@ -82,15 +82,34 @@ test('tuning, nodes, corners and the source-only comparison agree with the model
 });
 
 test('keyboard exploration, interface restore and explanation modal work', async ({ page }) => {
-  await page.locator('#motion-button').click();
-  await expect(page.locator('#motion-button')).toHaveAttribute('title', 'Play field animation');
-  await page.locator('#motion-button').click();
-  await expect(page.locator('#motion-button')).toHaveAttribute('title', 'Pause field animation');
+  const play = page.locator('#play');
+  await play.click();
+  await expect(play).toHaveAttribute('aria-pressed', 'true');
+  await expect(play).toHaveAccessibleName('Stop note');
+  // Space on a focused button presses that button, once.
+  await page.keyboard.press('Space');
+  await expect(play).toHaveAttribute('aria-pressed', 'false');
+  await expect(play).toHaveAccessibleName('Play note');
   await page.locator('canvas').focus();
+  await page.keyboard.press('Space');
+  await expect(play).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Space');
+  await expect(play).toHaveAttribute('aria-pressed', 'false');
   await page.keyboard.press('3');
   await expect(page.locator('#mode-indices')).toHaveText('(0, 0, 1)');
   await page.keyboard.press('4');
   await expect(page.locator('#mode-indices')).toHaveText('(2, 0, 0)');
+  // AZERTY prints " on the Digit3 key.
+  await page.locator('canvas').dispatchEvent('keydown', { key: '"', code: 'Digit3', bubbles: true });
+  await expect(page.locator('#mode-indices')).toHaveText('(0, 0, 1)');
+  await page.keyboard.press('v');
+  await expect(page.locator('#belief-button')).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('v');
+  await expect(page.locator('#physics-button')).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('m');
+  await expect(page.locator('#sound-button')).toHaveAttribute('aria-pressed', 'false');
+  await page.keyboard.press('m');
+  await expect(page.locator('#sound-button')).toHaveAttribute('aria-pressed', 'true');
   await page.keyboard.press('c');
   await expect(page.locator('#camera-button')).toHaveAttribute('aria-pressed', 'true');
   await page.keyboard.press('/');
@@ -101,6 +120,18 @@ test('keyboard exploration, interface restore and explanation modal work', async
   await page.keyboard.press('r');
   await expect(page.locator('#frequency-number')).toHaveValue('28.6');
   await expect(page.locator('#camera-button')).toHaveAttribute('aria-pressed', 'false');
+  await page.keyboard.press('Space');
+  await page.keyboard.press('2');
+  await page.keyboard.press('/');
+  await expect(page.locator('body')).toHaveClass(/ui-hidden/);
+  await page.keyboard.press('r');
+  await expect(play).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('body')).toHaveClass(/ui-hidden/);
+  await page.keyboard.press('2');
+  await page.keyboard.press('Shift+R');
+  await expect(page.locator('body')).not.toHaveClass(/ui-hidden/);
+  await expect(play).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#frequency-number')).toHaveValue('28.6');
   // Native range adjustment stays native; global shortcuts remain available after scrubbing.
   await page.locator('#frequency').focus();
   const listenerBeforeArrow = await page.locator('#position-readout').innerText();
@@ -120,6 +151,12 @@ test('keyboard exploration, interface restore and explanation modal work', async
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).not.toBeVisible();
+  for (const key of ['h', '?']) {
+    await page.keyboard.press(key);
+    await expect(page.getByRole('dialog'), `${key} opens the explainer`).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).not.toBeVisible();
+  }
   await page.locator('#frequency-number').fill('80');
   await page.keyboard.press('3');
   await expect(page.locator('#mode-indices')).toHaveText('(1, 0, 0)');
@@ -182,16 +219,24 @@ test('phone layout fits the viewport and leaves the mic available to drag', asyn
 
 test('mic pressure cue, relative level and real audio gain stay in sync', async ({ page }) => {
   const cue = page.locator('[data-callout="mic"]');
+  const play = page.locator('#play');
+  const sound = page.locator('#sound-button');
+  const contexts = () => page.evaluate(() => (window as Window & { toneProbe: AudioProbe }).toneProbe.contexts.length);
   const audio = () => page.evaluate(() => {
     const probe = (window as Window & { toneProbe: AudioProbe }).toneProbe;
     return { state: probe.contexts.at(-1)?.state, frequency: probe.oscillators.at(-1)?.frequency.value ?? 0, gain: probe.gains.at(-1)?.gain.value ?? 0 };
   });
-  expect(await page.evaluate(() => (window as Window & { toneProbe: AudioProbe }).toneProbe.contexts.length)).toBe(0);
+  expect(await contexts()).toBe(0);
   await expect(page.locator('.masthead #sound-button')).toHaveCount(1);
-  await expect(page.locator('#sound-label')).toHaveText('Sound off');
-  await page.locator('#sound-button').click();
-  await expect(page.locator('#sound-button')).toHaveAccessibleName('Sound on. Mute sound');
+  await expect(sound).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#sound-label')).toHaveText('Sound on');
+  await page.keyboard.press('m');
+  await page.keyboard.press('m');
+  expect(await contexts(), 'Sound alone never creates an AudioContext').toBe(0);
+  await expect(play).toHaveAccessibleName('Play note');
+  await play.click();
+  await expect(play).toHaveAccessibleName('Stop note');
+  await expect(sound).toHaveAccessibleName('Sound on. Mute sound');
   await expect.poll(async () => (await audio()).state).toBe('running');
   await page.locator('#quiet-button').click();
   await expect(cue).toHaveAttribute('data-pressure', 'quiet');
@@ -209,19 +254,31 @@ test('mic pressure cue, relative level and real audio gain stay in sync', async 
   const pressure = Number(await cue.getAttribute('data-amplitude'));
   await expect.poll(async () => (await audio()).gain).toBeCloseTo(pressure * 0.1, 3);
   expect(await level(page)).toBeCloseTo(20 * Math.log10(pressure), 0);
+
   await page.evaluate(() => (window as Window & { toneProbe: AudioProbe }).toneProbe.contexts.at(-1)!.suspend());
-  await expect(page.locator('#sound-button')).toHaveAttribute('aria-pressed', 'false');
+  await expect(sound).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('#sound-label')).toHaveText('Sound off');
+  await expect(play, 'The note keeps swinging silently').toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#toast')).toContainText('paused the sound');
   await expect.poll(async () => (await audio()).gain).toBe(0);
-  // The app suspends the context again 180 ms after muting, and Chromium never settles a resume that a suspend overtakes.
-  await page.waitForTimeout(250);
   await page.evaluate(() => (window as Window & { toneProbe: AudioProbe }).toneProbe.contexts.at(-1)!.resume());
   expect((await audio()).gain).toBe(0);
-  await expect(page.locator('#sound-button')).toHaveAttribute('aria-pressed', 'false');
-  await page.locator('#sound-button').click();
-  await expect(page.locator('#sound-button')).toHaveAttribute('aria-pressed', 'true');
-  await page.locator('#sound-button').click();
+  await expect(sound).toHaveAttribute('aria-pressed', 'false');
+
+  await sound.click();
+  await expect(sound).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(async () => (await audio()).state).toBe('running');
+  await expect.poll(async () => (await audio()).gain).toBeCloseTo(pressure * 0.1, 3);
+  await page.keyboard.press('m');
+  await expect(sound).toHaveAttribute('aria-pressed', 'false');
   await expect.poll(async () => (await audio()).state).toBe('suspended');
+  await page.keyboard.press('m');
+  await expect.poll(async () => (await audio()).state).toBe('running');
+  await play.click();
+  await expect(play).toHaveAttribute('aria-pressed', 'false');
+  await expect(sound, 'Sound stays on as the master switch').toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(async () => (await audio()).state).toBe('suspended');
+  expect(await contexts()).toBe(1);
 });
 
 test('sound startup cannot overlap and failure paths leave the lab usable', async ({ page }) => {
@@ -235,18 +292,19 @@ test('sound startup cannot overlap and failure paths leave the lab usable', asyn
       }
     };
   });
+  const play = page.locator('#play');
   const button = page.locator('#sound-button');
-  await button.click();
-  await expect(button).toBeDisabled();
+  await play.click();
   await expect(button).toHaveAttribute('aria-busy', 'true');
   await expect(page.locator('#sound-label')).toHaveText('Starting sound…');
   await expect(button).toHaveAccessibleName('Starting sound…');
-  // Dispatch bypasses disabled-button hit testing and exercises the handler's guard.
-  await button.dispatchEvent('click');
+  for (const key of ['Space', 'Space', 'm', 'm']) await page.keyboard.press(key);
+  await expect(button).toHaveAttribute('aria-busy', 'true');
   expect(await page.evaluate(() => (window as Window & { toneProbe: AudioProbe }).toneProbe.contexts.length)).toBe(1);
   await page.evaluate(() => (window as Window & { releaseAudioStart: () => void }).releaseAudioStart());
-  await expect(button).toBeEnabled();
+  await expect(button).toHaveAttribute('aria-busy', 'false');
   await expect(button).toHaveAttribute('aria-pressed', 'true');
+  await expect(play).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#sound-label')).toHaveText('Sound on');
   await button.click();
   await expect(button).toHaveAttribute('aria-pressed', 'false');
@@ -264,15 +322,78 @@ test('sound startup cannot overlap and failure paths leave the lab usable', asyn
         };
       }
     }, failure);
-    await button.click();
-    await expect(button).toBeEnabled();
+    await play.click();
     await expect(button).toHaveAttribute('aria-pressed', 'false');
+    await expect(button).toHaveAttribute('aria-busy', 'false');
     await expect(button).toHaveAccessibleName('Sound off. Enable sound');
     await expect(page.locator('#sound-label')).toHaveText('Sound off');
     await expect(page.locator('#toast')).toContainText('Audio could not start');
+    await expect(play, 'The note keeps swinging silently').toHaveAttribute('aria-pressed', 'true');
     await page.locator('#frequency').fill('200');
     await expect(page.locator('#frequency-number')).toHaveValue('200.0');
   }
+});
+
+test('rapid mute and unmute, then an external resume, settle into one state with one AudioContext', async ({ page }) => {
+  await page.evaluate(() => {
+    const probe = (window as Window & { toneProbe: AudioProbe }).toneProbe;
+    const Probe = window.AudioContext;
+    let starting: Promise<void> | null = null;
+    probe.overtaken = 0;
+    // A slow device: its output takes 300 ms to start, and as in Chromium every resume issued
+    // meanwhile settles when it does. A suspend in that window is one Chromium never recovers from.
+    window.AudioContext = class extends Probe {
+      override resume(): Promise<void> {
+        if (this.state === 'running' && !starting) return super.resume();
+        starting ??= new Promise(resolve => setTimeout(resolve, 300))
+          .then(() => super.resume())
+          .finally(() => { starting = null; });
+        return starting;
+      }
+      override suspend(): Promise<void> {
+        if (starting) probe.overtaken = (probe.overtaken ?? 0) + 1;
+        return super.suspend();
+      }
+    };
+  });
+  const cue = page.locator('[data-callout="mic"]');
+  const sound = page.locator('#sound-button');
+  const audio = () => page.evaluate(() => {
+    const probe = (window as Window & { toneProbe: AudioProbe }).toneProbe;
+    return { contexts: probe.contexts.length, state: probe.contexts.at(-1)?.state, gain: probe.gains.at(-1)?.gain.value ?? 0, overtaken: probe.overtaken };
+  });
+  await page.locator('#peak-button').click();
+  await page.locator('#play').click();
+  await expect(sound).toHaveAttribute('aria-busy', 'false');
+  await expect.poll(async () => (await audio()).state).toBe('running');
+  await page.keyboard.press('m');
+  await expect.poll(async () => (await audio()).state).toBe('suspended');
+
+  // Unmute, mute, unmute, mute: the last mute lands while the first unmute's resume is still pending.
+  for (let toggle = 0; toggle < 4; toggle++) await page.keyboard.press('m');
+  const outcome = await page.evaluate(() => {
+    const context = (window as Window & { toneProbe: AudioProbe }).toneProbe.contexts.at(-1)!;
+    return Promise.race([
+      context.resume().then(() => 'settled'),
+      new Promise(resolve => setTimeout(() => resolve('pending'), 3000)),
+    ]);
+  });
+  expect(outcome, 'The external resume settles').toBe('settled');
+  await expect(sound).toHaveAttribute('aria-pressed', 'false');
+  await expect(sound).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('#play')).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(async () => (await audio()).state).toBe('suspended');
+  expect((await audio()).gain).toBeLessThan(0.001);
+
+  await page.keyboard.press('m');
+  await expect(sound).toHaveAttribute('aria-pressed', 'true');
+  await expect(sound).toHaveAttribute('aria-busy', 'false');
+  await expect.poll(async () => (await audio()).state).toBe('running');
+  const amplitude = Number(await cue.getAttribute('data-amplitude'));
+  await expect.poll(async () => (await audio()).gain).toBeCloseTo(amplitude * 0.1, 3);
+  const settled = await audio();
+  expect(settled.contexts).toBe(1);
+  expect(settled.overtaken, 'No suspend lands while a resume is pending').toBe(0);
 });
 
 test('mic drag owns one touch and releases capture when interrupted', async ({ page }) => {
