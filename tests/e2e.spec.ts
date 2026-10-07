@@ -36,7 +36,7 @@ test.beforeEach(async ({ page }) => {
 test.afterEach(() => expect(pageErrors, 'No uncaught browser errors').toEqual([]));
 
 async function level(page: Page): Promise<number> {
-  return Number((await page.locator('#level-db').innerText()).replace('−', '-'));
+  return Number(await page.locator('#readout-level').getAttribute('data-value'));
 }
 
 /** Find the projected 3D mic from its callout rather than relying on fixed screen coordinates. */
@@ -58,8 +58,15 @@ async function micTarget(page: Page): Promise<{ x: number; y: number }> {
 }
 
 test('tuning, nodes, corners and the source-only comparison agree with the model', async ({ page }) => {
+  const wavelength = page.locator('#readout-wavelength');
+  const mode = page.locator('#readout-mode');
+  const levelUnit = page.locator('#readout-level .readout__unit');
   await expect(page.locator('#frequency-number')).toHaveValue('28.6');
-  await expect(page.locator('#wavelength')).toHaveText('12.00');
+  await expect(page.locator('#readout-frequency')).toHaveText('28.6 Hz');
+  await expect(wavelength).toHaveText('12.00 m');
+  await expect(wavelength).toHaveAttribute('data-value', '12.00');
+  await expect(mode).toHaveText('(1, 0, 0)');
+  await expect(levelUnit).toHaveText('dB re antinode');
   await page.locator('#quiet-button').click();
   expect(await level(page)).toBeLessThan(-30);
   await page.locator('#peak-button').click();
@@ -68,17 +75,29 @@ test('tuning, nodes, corners and the source-only comparison agree with the model
   await expect(page.locator('#belief-button')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#field-low-label')).toHaveText('Far');
   await expect(page.locator('#field-high-label')).toHaveText('Near');
+  await expect(mode).toHaveText('none');
+  await expect(levelUnit).toHaveText('dB re speaker');
   expect(await level(page)).toBeLessThan(-10);
   await page.locator('#physics-button').click();
   await expect(page.locator('#field-low-label')).toHaveText('Node');
   await expect(page.locator('#field-high-label')).toHaveText('Antinode');
+  await expect(levelUnit).toHaveText('dB re antinode');
+  await wavelength.evaluate(element => {
+    const seen: string[] = (element as HTMLElement & { seen?: string[] }).seen = [];
+    new MutationObserver(() => seen.push(element.textContent!)).observe(element, { subtree: true, childList: true, characterData: true });
+  });
   await page.locator('[data-axis="width"]').click();
   await expect(page.locator('#frequency-number')).toHaveValue('42.9');
-  await expect(page.locator('#mode-indices')).toHaveText('(0, 1, 0)');
+  await expect(wavelength, 'data-value holds the settled number at once').toHaveAttribute('data-value', '8.00');
+  await expect(mode).toHaveText('(0, 1, 0)');
+  await expect(wavelength).toHaveText('8.00 m');
+  const seen = await wavelength.evaluate(element => (element as HTMLElement & { seen: string[] }).seen);
+  expect(seen.filter(text => text !== '12.00 m' && text !== '8.00 m').length, 'The text tweens through values in between').toBeGreaterThan(0);
   await page.locator('#frequency').fill('95.2');
   await expect(page.locator('#frequency-number')).toHaveValue('95.2');
-  await expect(page.locator('#wavelength')).toHaveText('3.60');
-  await expect(page.locator('#mode-indices')).toHaveText('(3, 0, 0)');
+  await expect(wavelength).toHaveAttribute('data-value', '3.60');
+  await expect(wavelength).toHaveText('3.60 m');
+  await expect(mode).toHaveText('(3, 0, 0)');
 });
 
 test('keyboard exploration, interface restore and explanation modal work', async ({ page }) => {
@@ -96,12 +115,12 @@ test('keyboard exploration, interface restore and explanation modal work', async
   await page.keyboard.press('Space');
   await expect(play).toHaveAttribute('aria-pressed', 'false');
   await page.keyboard.press('3');
-  await expect(page.locator('#mode-indices')).toHaveText('(0, 0, 1)');
+  await expect(page.locator('#readout-mode')).toHaveText('(0, 0, 1)');
   await page.keyboard.press('4');
-  await expect(page.locator('#mode-indices')).toHaveText('(2, 0, 0)');
+  await expect(page.locator('#readout-mode')).toHaveText('(2, 0, 0)');
   // AZERTY prints " on the Digit3 key.
   await page.locator('canvas').dispatchEvent('keydown', { key: '"', code: 'Digit3', bubbles: true });
-  await expect(page.locator('#mode-indices')).toHaveText('(0, 0, 1)');
+  await expect(page.locator('#readout-mode')).toHaveText('(0, 0, 1)');
   await page.keyboard.press('v');
   await expect(page.locator('#belief-button')).toHaveAttribute('aria-pressed', 'true');
   await page.keyboard.press('v');
@@ -159,7 +178,7 @@ test('keyboard exploration, interface restore and explanation modal work', async
   }
   await page.locator('#frequency-number').fill('80');
   await page.keyboard.press('3');
-  await expect(page.locator('#mode-indices')).toHaveText('(1, 0, 0)');
+  await expect(page.locator('#readout-mode')).toHaveText('(1, 0, 0)');
 });
 
 test('dragging the 3D mic changes its reading while orbiting preserves its position', async ({ page }) => {

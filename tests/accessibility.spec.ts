@@ -20,10 +20,10 @@ test('pressure legend explains both models and announces settled mode and band c
       element.dataset.mutations = String(Number(element.dataset.mutations) + records.length);
     }).observe(element, { childList: true });
   });
-  const reading = await page.locator('#level-db').textContent();
+  const reading = await page.locator('#readout-level').getAttribute('data-value');
   await page.getByRole('application', { name: 'Interactive acoustic room' }).focus();
   await page.keyboard.press('ArrowLeft');
-  await expect(page.locator('#level-db')).not.toHaveText(reading!);
+  await expect(page.locator('#readout-level')).not.toHaveAttribute('data-value', reading!);
   await page.waitForTimeout(250);
   await expect(summary).toHaveText(quietSummary!);
   await expect(summary).toHaveAttribute('data-mutations', '0');

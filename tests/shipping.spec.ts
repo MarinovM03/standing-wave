@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loadEnv } from 'vite';
+import { HOOK, PAGE, TITLE_BLOCK } from '../src/ui/copy';
 
 const listenerAndSceneControls = '#height, .listener-presets button, .scene-tools button';
 
@@ -113,6 +114,7 @@ test('raw production HTML contains crawler copy and deployment-aware share metad
   expect(response.headers()['content-type']).toContain('text/html');
   const html = await response.text();
   expect(html).not.toMatch(/%[A-Z_]+%/);
+  expect(html, 'No em dashes in the page or its meta tags').not.toContain('—');
   const content = await page.evaluate(source => {
     const document = new DOMParser().parseFromString(source, 'text/html');
     const meta = (name: string) => document.querySelector(`meta[name="${name}"], meta[property="${name}"]`)?.getAttribute('content');
@@ -124,8 +126,11 @@ test('raw production HTML contains crawler copy and deployment-aware share metad
     return {
       title: document.title,
       description: meta('description'),
-      heading: document.querySelector('#static-explainer h1')?.textContent,
-      explanation: document.querySelector('#static-explainer')?.textContent,
+      headings: document.querySelectorAll('h1').length,
+      kicker: document.querySelector('#title-block .title-block__kicker')?.textContent,
+      heading: document.querySelector('#title-block h1')?.textContent,
+      hook: document.querySelector('#title-block .title-block__hook')?.textContent?.replace(/\s+/g, ' ').trim(),
+      explanation: document.querySelector('noscript')?.textContent,
       canonical: document.querySelector('link[rel="canonical"]')?.getAttribute('href'),
       ogTitle: meta('og:title'), ogDescription: meta('og:description'), ogType: meta('og:type'),
       ogUrl: meta('og:url'), ogImage: meta('og:image'), ogAlt: meta('og:image:alt'),
@@ -137,21 +142,25 @@ test('raw production HTML contains crawler copy and deployment-aware share metad
   const siteURL = loadEnv('production', process.cwd(), ['SITE_URL']).SITE_URL?.trim();
   const canonical = siteURL ? new URL(basePath, siteURL).href : basePath;
   const image = siteURL ? new URL(`${basePath}og.png`, siteURL).href : `${basePath}og.png`;
-  expect(content.title).toContain('Standing Wave');
-  expect(content.description).toMatch(/room|bass|standing.wave/i);
-  expect(content.heading).toContain('Standing Wave');
+  expect(content.title).toBe(PAGE.title);
+  expect(content.description).toBe(PAGE.description);
+  expect(content.headings).toBe(1);
+  expect(content.kicker).toBe(TITLE_BLOCK.kicker);
+  expect(content.heading).toBe(TITLE_BLOCK.title);
+  expect(content.hook).toBe(`${HOOK.youdThink} ${HOOK.actually}`);
+  expect(content.explanation).toMatch(/JavaScript/);
   expect(content.explanation).toMatch(/speaker/i);
   expect(content.explanation).toMatch(/room/i);
   expect(content.explanation).toMatch(/node|quiet/i);
   expect(content.canonical).toBe(canonical);
-  expect(content.ogTitle).toContain('Standing Wave');
-  expect(content.ogDescription).toMatch(/room|bass/i);
+  expect(content.ogTitle).toBe(PAGE.title);
+  expect(content.ogDescription).toBe(PAGE.description);
   expect(content.ogType).toBe('website');
   expect(content.ogUrl).toBe(canonical);
   expect(content.ogImage).toBe(image);
   expect(content.ogAlt).toBeTruthy();
   expect(content.twitterCard).toBe('summary_large_image');
-  expect(content.twitterTitle).toContain('Standing Wave');
+  expect(content.twitterTitle).toBe(PAGE.title);
   expect(content.twitterImage).toBe(image);
   expect(content.app?.name).toContain('Standing Wave');
   expect(content.app?.url).toBe(canonical);
@@ -200,22 +209,30 @@ test('production assets load beneath the configured base with real file types', 
   expect(bytes.readUInt32BE(16)).toBe(1200);
   expect(bytes.readUInt32BE(20)).toBe(630);
   expect(failures).toEqual([]);
-  await expect(page.locator('#static-explainer')).toHaveCount(0);
+  await expect(page.locator('.stage > #title-block'), 'The app adopts the static title block').toHaveCount(1);
   await expect(page.locator('h1')).toHaveCount(1);
+  expect(await page.evaluate(() => [
+    document.documentElement.textContent ?? '',
+    ...Array.from(document.querySelectorAll('*'), element => Array.from(element.attributes, attribute => attribute.value)).flat(),
+  ].filter(text => text.includes('—'))), 'No em dashes in the page text or attributes').toEqual([]);
 });
 
-test('the static explanation remains readable with JavaScript disabled', async ({ browser, baseURL }) => {
+test('the title block and its explanation show with JavaScript disabled', async ({ browser, baseURL }) => {
   const context = await browser.newContext({ baseURL, javaScriptEnabled: false });
   try {
     const page = await context.newPage();
     await page.goto('./');
-    const explanation = page.locator('#static-explainer');
+    const titleBlock = page.locator('#title-block');
+    await expect(titleBlock).toBeVisible();
+    await expect(titleBlock.locator('h1')).toHaveText(TITLE_BLOCK.title);
+    await expect(titleBlock).toContainText(HOOK.youdThink);
+    await expect(titleBlock).toContainText(HOOK.actually);
+    await expect(page.locator('h1')).toHaveCount(1);
+    const explanation = page.locator('.no-script');
     await expect(explanation).toBeVisible();
-    await expect(explanation.locator('h1')).toContainText('Standing Wave');
+    await expect(explanation).toContainText(/JavaScript/);
     await expect(explanation).toContainText(/speaker/i);
     await expect(explanation).toContainText(/room/i);
-    await expect(page.locator('noscript p')).toBeVisible();
-    await expect(page.locator('noscript p')).toContainText(/JavaScript/i);
     await expect(page.locator('canvas, #frequency')).toHaveCount(0);
   } finally {
     await context.close();
