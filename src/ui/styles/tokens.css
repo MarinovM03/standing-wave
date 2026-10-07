@@ -1,0 +1,30 @@
+:root {
+  --ink: #0f0e0c;
+  --surface: #1a1814;
+  --raised: #24211c;
+  --line: rgba(240, 235, 223, 0.1);
+  --paper: #f0ebdf;
+  --muted: #a39d90;
+  --signal: #6b78ff;
+  --pencil: #ff5a3c;
+  --swatch: #3aced3;
+
+  --glass: rgba(15, 14, 12, 0.72);
+  --glass-blur: 16px;
+  --glass-radius: 14px;
+
+  --font-ui: 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --fast: 200ms;
+}
+
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--line);
+  border-radius: var(--glass-radius);
+}
