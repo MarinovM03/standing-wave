@@ -1,4 +1,29 @@
+/// <reference types="vitest/config" />
 import { defineConfig, loadEnv } from 'vite';
+import { HOOK, NOSCRIPT, PAGE, TITLE_BLOCK } from './src/ui/copy';
+
+const HTML_COPY: Readonly<Record<string, string>> = {
+  PAGE_TITLE: PAGE.title,
+  SITE_NAME: PAGE.siteName,
+  DESCRIPTION: PAGE.description,
+  SHARE_ALT: PAGE.shareAlt,
+  KICKER: TITLE_BLOCK.kicker,
+  TITLE: TITLE_BLOCK.title,
+  YOUD_THINK: HOOK.youdThink,
+  ACTUALLY: HOOK.actually,
+  NOSCRIPT_NEEDS: NOSCRIPT.needs,
+  NOSCRIPT_IDEA: NOSCRIPT.idea,
+};
+
+const escapeHtml = (text: string) => text.replace(/[&<>"]/g, character => `&#${character.charCodeAt(0)};`);
+
+function fillCopy(html: string): string {
+  return html.replace(/%COPY_([A-Z_]+)%/g, (_, key: string) => {
+    const text = HTML_COPY[key];
+    if (text === undefined) throw new Error(`index.html asks for unknown copy %COPY_${key}%`);
+    return escapeHtml(text);
+  });
+}
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), ['BASE_PATH', 'SITE_URL']);
@@ -22,6 +47,9 @@ export default defineConfig(({ mode }) => {
   return {
     base,
     plugins: [{
+      name: 'standing-wave-copy',
+      transformIndexHtml: { order: 'pre', handler: fillCopy },
+    }, {
       name: 'standing-wave-document',
       transformIndexHtml: {
         order: 'post',
@@ -35,7 +63,8 @@ export default defineConfig(({ mode }) => {
             children: JSON.stringify({
               '@context': 'https://schema.org',
               '@type': 'WebApplication',
-              name: 'Standing Wave',
+              name: TITLE_BLOCK.title,
+              description: PAGE.description,
               url: canonical,
               image: shareImage,
               applicationCategory: 'EducationalApplication',
@@ -54,6 +83,10 @@ export default defineConfig(({ mode }) => {
         });
       },
     }],
+    test: {
+      // Vitest blanks CSS imports, ?raw included; the token and copy tests read the source.
+      css: { include: [/\.css\?raw$/] },
+    },
     build: {
       rollupOptions: {
         output: {
