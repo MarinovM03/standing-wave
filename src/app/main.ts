@@ -2,6 +2,7 @@ import { Stage } from '../scene/stage';
 import { COORDINATE, type Axis } from '../model/room';
 import { antinodePlanes, coupling, getNearestMode, halfWavelength, nodePlanes, relativeDb, sampleField, wavelength, type Mode } from '../model/acoustics';
 import { createCallouts } from '../ui/callouts';
+import { adoptTitleBlock } from '../ui/title';
 import { createExperimentView } from '../ui/view';
 import { NoteAudio, type AudioFailure, type AudioStatus } from './audio';
 import { keyCommand, type KeyCommand, type KeyFocus } from './keys';
@@ -16,6 +17,8 @@ let toneAnnounced = false;
 
 const view = createExperimentView(document.querySelector<HTMLDivElement>('#app')!);
 const { controls } = view;
+const title = adoptTitleBlock();
+controls.scene.before(title.element);
 const audio = new NoteAudio();
 const callouts = createCallouts(controls.scene);
 const events = new AbortController();
@@ -43,7 +46,10 @@ function stageState(amplitude: number) {
 function update() {
   const mode = getNearestMode(state.frequency);
   const amplitude = sampleField(state.mic, state.frequency, state.view, mode, state.speaker);
-  view.render(state, { mode, amplitude, db: relativeDb(amplitude), wavelength: wavelength(state.frequency) }, audioStatus === 'starting');
+  const db = relativeDb(amplitude);
+  const waveLength = wavelength(state.frequency);
+  view.render(state, { mode, amplitude, db, wavelength: waveLength }, audioStatus === 'starting');
+  title.setReadings({ view: state.view, frequency: state.frequency, wavelength: waveLength, indices: mode.indices, db });
   callouts.setReadings(state.view, calloutReadings(mode, amplitude));
   audio.update(state.frequency, amplitude);
   room?.setState(stageState(amplitude));
@@ -187,5 +193,6 @@ if (import.meta.hot) import.meta.hot.dispose(() => {
   room?.dispose();
   callouts.dispose();
   audio.dispose();
+  title.dispose();
   view.dispose();
 });

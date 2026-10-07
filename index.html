@@ -3,34 +3,44 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#080f12" />
-    <title>Standing Wave — Room Modes &amp; Bass Hotspots in 3D</title>
-    <meta name="description" content="Explore standing waves and simplified room modes in 3D. Scrub frequency and move a listener through bass hotspots and dead spots." />
+    <meta name="theme-color" content="#0f0e0c" />
+    <title>%COPY_PAGE_TITLE%</title>
+    <meta name="description" content="%COPY_DESCRIPTION%" />
     <meta name="robots" content="index, follow" />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Standing Wave" />
-    <meta property="og:title" content="Standing Wave — Same speaker, different bass" />
-    <meta property="og:description" content="Explore standing waves and simplified room modes in 3D. Scrub frequency and move a listener through bass hotspots and dead spots." />
+    <meta property="og:site_name" content="%COPY_SITE_NAME%" />
+    <meta property="og:title" content="%COPY_PAGE_TITLE%" />
+    <meta property="og:description" content="%COPY_DESCRIPTION%" />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Standing Wave — Same speaker. Different bass. A speaker and microphone in a dark room with amber-lit ends and a cool central quiet plane. Scrub frequency. Move the mic." />
+    <meta property="og:image:alt" content="%COPY_SHARE_ALT%" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Standing Wave — Same speaker, different bass" />
-    <meta name="twitter:description" content="Explore standing waves and simplified room modes in 3D. Scrub frequency and move a listener through bass hotspots and dead spots." />
-    <meta name="twitter:image:alt" content="Standing Wave — Same speaker. Different bass. A speaker and microphone in a dark room with amber-lit ends and a cool central quiet plane. Scrub frequency. Move the mic." />
+    <meta name="twitter:title" content="%COPY_PAGE_TITLE%" />
+    <meta name="twitter:description" content="%COPY_DESCRIPTION%" />
+    <meta name="twitter:image:alt" content="%COPY_SHARE_ALT%" />
     <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
+    <link rel="preload" href="%BASE_URL%fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="%BASE_URL%fonts/instrument-serif-italic-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="%BASE_URL%fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <div id="app">
-      <main id="static-explainer">
-        <h1>Standing Wave</h1>
-        <p>The bass isn't louder in the corner because the speaker is. The room is stacking the wave.</p>
-        <p>Compare <strong>Speaker only</strong> with <strong>Room interference</strong>. Scrub frequency and move a listener through bass hotspots and dead spots in a simplified rectangular room.</p>
-        <noscript><p>The interactive 3D room needs JavaScript and WebGL. A pressure node is a quiet plane; an antinode is a pressure peak. This lab isolates one room mode at a time.</p></noscript>
-      </main>
-    </div>
+    <header class="title-block" id="title-block">
+      <p class="title-block__kicker">%COPY_KICKER%</p>
+      <h1 class="title-block__title">%COPY_TITLE%</h1>
+      <p class="title-block__hook">
+        <s class="title-block__wrong">%COPY_YOUD_THINK%</s>
+        <span class="title-block__right">%COPY_ACTUALLY%</span>
+      </p>
+    </header>
+    <noscript>
+      <div class="no-script">
+        <p>%COPY_NOSCRIPT_NEEDS%</p>
+        <p>%COPY_NOSCRIPT_IDEA%</p>
+      </div>
+    </noscript>
+    <div id="app"></div>
     <script type="module" src="/src/app/main.ts"></script>
   </body>
 </html>

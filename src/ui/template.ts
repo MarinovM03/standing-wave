@@ -1,13 +1,9 @@
-const waveIcon = `<svg viewBox="0 0 36 28" fill="none" aria-hidden="true"><path d="M2 14C7-2 12-2 18 14S29 30 34 14M2 14C7 30 12 30 18 14S29-2 34 14" stroke="currentColor" stroke-width="1.6"/><path d="M2 14h32" stroke="currentColor" stroke-width=".6" opacity=".4"/></svg>`;
 const soundIcon = `<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 8h3l4-4v12l-4-4H3V8Z" stroke="currentColor" stroke-width="1.3"/><path d="M13 7c2 1.5 2 4.5 0 6m2-9c4 3 4 9 0 12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>`;
 const cameraIcon = `<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 6h3l1-2h6l1 2h3v10H3V6Z" stroke="currentColor" stroke-width="1.2"/><circle cx="10" cy="10.5" r="3" stroke="currentColor" stroke-width="1.2"/></svg>`;
 export const experimentMarkup = `
   <div class="experience">
     <header class="masthead interface">
-      <a class="brand" href="./" aria-label="Standing Wave home">${waveIcon}<span>Standing Wave<span class="brand-period">.</span></span></a>
-      <span class="lab-title">SMALL EXPERIMENTS. INVISIBLE THINGS.</span>
       <div class="header-actions">
-        <span class="edition"><i></i> LAB 001</span>
         <button id="sound-button" type="button" aria-pressed="false" aria-label="Sound off. Enable sound">${soundIcon}<span id="sound-label">Sound off</span></button>
         <button class="text-button" id="how-button">How it works <span>↗</span></button>
       </div>
@@ -17,11 +13,6 @@ export const experimentMarkup = `
       <p id="room-instructions" class="sr-only">Use arrow keys to move the listener, or hold Shift for larger steps. W, A, S, D move the camera. C toggles cinematic orbit; R resets. Tab moves to the next control. On touch screens, drag the mic to move it, drag empty space to orbit, and pinch to zoom.</p>
       <p id="pressure-summary" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
       <div class="stage-vignette" aria-hidden="true"></div>
-      <section class="intro interface">
-        <p class="eyebrow"><span class="tiny-line"></span> THE INVISIBLE ARCHITECTURE OF SOUND</p>
-        <h1>Same speaker.<br><em>Different bass.</em></h1>
-        <p class="tagline play-instruction"><span>↔</span> Scrub frequency. <span>◎</span> Drag the mic.</p>
-      </section>
       <section class="comparison interface" aria-label="Compare sound models">
         <div class="segmented">
           <button id="belief-button" aria-pressed="false">

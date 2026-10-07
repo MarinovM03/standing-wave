@@ -5,4 +5,6 @@
 @import './styles/responsive.css';
 @import './styles/density.css';
 @import './styles/interactions.css';
+@import './ui/styles/tokens.css';
+@import './ui/styles/title.css';
 @import './ui/styles/callouts.css';
