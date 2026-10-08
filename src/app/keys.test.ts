@@ -49,6 +49,15 @@ describe('keys', () => {
     expect(keyCommand(press('ArrowDown', 'ArrowDown', { repeat: true }), idle)).toEqual({ type: 'moveMic', dx: 0, dz: 0.1 });
   });
 
+  it('keeps only Shift+R while help is open', () => {
+    const open: KeyContext = { ...idle, dialogOpen: true };
+    expect(keyCommand(press('R', 'KeyR', { shiftKey: true }), open)).toEqual({ type: 'fullReset' });
+    expect(keyCommand(press('R', 'KeyR', { shiftKey: true, repeat: true }), open)).toBeNull();
+    expect(keyCommand(press('r', 'KeyR'), open)).toBeNull();
+    expect(keyCommand(press('h', 'KeyH'), open)).toBeNull();
+    expect(keyCommand(press('ArrowLeft', 'ArrowLeft'), open)).toBeNull();
+  });
+
   it('never fires while typing in a field', () => {
     const typing: KeyContext = { ...idle, focus: 'text' };
     for (const [key, code] of [[' ', 'Space'], ['3', 'Digit3'], ['"', 'Digit3'], ['r', 'KeyR'], ['m', 'KeyM'], ['/', 'Slash'], ['?', 'Slash'], ['ArrowLeft', 'ArrowLeft'], ['Escape', 'Escape']]) {

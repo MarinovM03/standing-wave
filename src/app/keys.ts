@@ -56,9 +56,14 @@ function preset(press: KeyPress): Preset | null {
   return null;
 }
 
+function fullReset(press: KeyPress): boolean {
+  return press.shiftKey && !press.repeat && press.key.toLowerCase() === 'r';
+}
+
 export function keyCommand(press: KeyPress, context: KeyContext): KeyCommand | null {
-  if (context.dialogOpen || context.focus === 'text') return null;
+  if (context.focus === 'text') return null;
   if (press.ctrlKey || press.metaKey || press.altKey) return null;
+  if (context.dialogOpen) return fullReset(press) ? { type: 'fullReset' } : null;
   if (context.focus === 'range' && RANGE_KEYS.has(press.key)) return null;
 
   const arrow = ARROWS.get(press.key);
