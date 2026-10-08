@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loadEnv } from 'vite';
 import { HOOK, PAGE, TITLE_BLOCK } from '../src/ui/copy';
 
-const listenerAndSceneControls = '#height, .listener-presets button, .scene-tools button';
+const controls = '.dock button, .dock input, .actions button, .actions a';
 
 async function expectExposed(control: Locator): Promise<void> {
   await control.scrollIntoViewIfNeeded();
@@ -15,14 +15,14 @@ async function expectExposed(control: Locator): Promise<void> {
 }
 
 async function expectSeparateControls(page: Page): Promise<void> {
-  const overlaps = await page.locator(listenerAndSceneControls).evaluateAll(elements => {
+  const overlaps = await page.locator(controls).evaluateAll(elements => {
     const rectangles = elements.map(element => {
       const rect = element.getBoundingClientRect();
       let left = Math.max(0, rect.left);
       let right = Math.min(innerWidth, rect.right);
       let top = Math.max(0, rect.top);
       let bottom = Math.min(innerHeight, rect.bottom);
-      // A scrollable listener card may clip controls until they are scrolled into view.
+      // A clipping container hides whatever falls outside it.
       for (let parent = element.parentElement; parent; parent = parent.parentElement) {
         const style = getComputedStyle(parent);
         const bounds = parent.getBoundingClientRect();
@@ -35,7 +35,7 @@ async function expectSeparateControls(page: Page): Promise<void> {
           bottom = Math.min(bottom, bounds.bottom);
         }
       }
-      return { id: element.id, left, right, top, bottom };
+      return { id: element.id || element.className, left, right, top, bottom };
     });
     const collisions: string[] = [];
     for (let first = 0; first < rectangles.length; first++) {
@@ -48,7 +48,7 @@ async function expectSeparateControls(page: Page): Promise<void> {
     }
     return collisions;
   });
-  expect(overlaps, 'Visible listener controls and scene tools do not overlap').toEqual([]);
+  expect(overlaps, 'Dock controls and top-right buttons do not overlap').toEqual([]);
 }
 
 for (const viewport of [{ width: 1440, height: 420 }, { width: 1440, height: 650 }, { width: 1024, height: 500 }, { width: 844, height: 320 }]) {
@@ -62,10 +62,8 @@ for (const viewport of [{ width: 1440, height: 420 }, { width: 1440, height: 650
     await expect(page.locator('.webgl-fallback')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width + 1);
 
-    for (const control of await page.locator(listenerAndSceneControls).all()) {
-      await expectExposed(control);
-      await expectSeparateControls(page);
-    }
+    for (const control of await page.locator(controls).all()) await expectExposed(control);
+    await expectSeparateControls(page);
 
     const height = page.locator('#height');
     await expectExposed(height);
@@ -73,14 +71,15 @@ for (const viewport of [{ width: 1440, height: 420 }, { width: 1440, height: 650
     await page.keyboard.press('End');
     await expect(height).toHaveValue('2.72');
     await expect(page.locator('#height-value')).toContainText('2.72');
-    await page.locator('#quiet-button').click();
-    await expect(page.locator('.listener-card')).toHaveAttribute('data-pressure', 'quiet');
-    await page.locator('#peak-button').click();
-    await expect(page.locator('.listener-card')).toHaveAttribute('data-pressure', 'hot');
-    await page.locator('#camera-button').click();
-    await expect(page.locator('#camera-button')).toHaveAttribute('aria-pressed', 'true');
-    await page.locator('#reset-button').click();
-    await expect(page.locator('#camera-button')).toHaveAttribute('aria-pressed', 'false');
+    const mic = page.locator('[data-callout="mic"]');
+    await page.locator('#mic-node').click();
+    await expect(mic).toHaveAttribute('data-pressure', 'quiet');
+    await page.locator('#mic-corner').click();
+    await expect(mic).toHaveAttribute('data-pressure', 'hot');
+    await page.locator('#cinematic').click();
+    await expect(page.locator('#cinematic')).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('r');
+    await expect(page.locator('#cinematic')).toHaveAttribute('aria-pressed', 'false');
 
     const frequency = page.locator('#frequency');
     await expectExposed(frequency);
@@ -95,15 +94,15 @@ for (const viewport of [{ width: 1440, height: 420 }, { width: 1440, height: 650
     await expect.poll(() => page.evaluate(() => {
       const room = document.querySelector('canvas')!;
       const rect = room.getBoundingClientRect();
-      const mic = document.querySelector<HTMLElement>('[data-callout="mic"]')!;
-      return mic.dataset.visible === 'true' && document.elementFromPoint(
-        rect.left + Number(mic.dataset.x), rect.top + Number(mic.dataset.y),
+      const marker = document.querySelector<HTMLElement>('[data-callout="mic"]')!;
+      return marker.dataset.visible === 'true' && document.elementFromPoint(
+        rect.left + Number(marker.dataset.x), rect.top + Number(marker.dataset.y),
       ) === room;
     }), 'The projected mic is exposed in the room').toBe(true);
-    const position = await page.locator('#position-readout').textContent();
+    const position = await mic.getAttribute('data-position');
     await canvas.focus();
     await page.keyboard.press('ArrowLeft');
-    await expect(page.locator('#position-readout')).not.toHaveText(position!);
+    await expect(mic).not.toHaveAttribute('data-position', position!);
     expect(errors).toEqual([]);
   });
 }
@@ -182,15 +181,15 @@ test('production assets load beneath the configured base with real file types', 
   const references = await page.locator('script[src], link[rel="stylesheet"], link[rel="modulepreload"], link[rel="icon"]').evaluateAll(elements =>
     elements.map(element => element.getAttribute('src') || element.getAttribute('href')!),
   );
-  const types = { '.js': /(?:java|ecma)script/, '.css': /text\/css/, '.svg': /image\/svg\+xml/, '.ttf': /font\/ttf|application\/(?:x-font-ttf|font-sfnt|octet-stream)/ };
-  for (const resource of resources.filter(entry => /\.(?:js|css|ttf)(?:\?|$)/.test(entry.url))) {
+  const types = { '.js': /(?:java|ecma)script/, '.css': /text\/css/, '.svg': /image\/svg\+xml/, '.woff2': /font\/woff2|application\/(?:font-woff2|octet-stream)/ };
+  for (const resource of resources.filter(entry => /\.(?:js|css|woff2)(?:\?|$)/.test(entry.url))) {
     const url = new URL(resource.url);
     expect(url.pathname).toMatch(new RegExp(`^${base.pathname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
     expect(resource.status, url.pathname).toBe(200);
     const extension = url.pathname.slice(url.pathname.lastIndexOf('.')) as keyof typeof types;
     expect(resource.type, url.pathname).toMatch(types[extension]);
   }
-  expect(resources.filter(resource => new URL(resource.url).pathname.endsWith('.ttf')).length).toBeGreaterThanOrEqual(2);
+  expect(resources.filter(resource => new URL(resource.url).pathname.endsWith('.woff2')).length).toBeGreaterThanOrEqual(3);
   for (const reference of references) {
     const url = new URL(reference, baseURL);
     expect(url.origin).toBe(base.origin);

@@ -121,11 +121,10 @@ async function expectRoomAndFrequencyInViewport(page: Page): Promise<void> {
 
 async function expectTouchTargets(page: Page): Promise<void> {
   const targets = await page.locator([
-    '#frequency', '#height', '#how-button', '#sound-button',
-    '.segmented button', '.listener-presets button', '.scene-tools button', '.mode-button',
+    '#frequency', '#height', '.actions button', '.dock button',
   ].join(',')).evaluateAll(elements => elements.map(element => {
     const box = element.getBoundingClientRect();
-    return { name: element.id || element.getAttribute('data-axis'), width: box.width, height: box.height };
+    return { name: element.id, width: box.width, height: box.height };
   }));
   for (const target of targets) {
     expect(target.width, `${target.name} has a 44px-wide touch area`).toBeGreaterThanOrEqual(44);
@@ -146,16 +145,16 @@ async function audioState(page: Page) {
 }
 
 async function expectSoundControlVisible(page: Page): Promise<void> {
-  const button = page.locator('#sound-button');
+  const button = page.locator('#sound');
   await expect(button).toHaveCount(1);
-  await expect(page.locator('.masthead #sound-button')).toHaveCount(1);
-  await expect(button, 'Sound stays available without scrolling back to the header').toBeInViewport({ ratio: 1 });
+  await expect(page.locator('.actions #sound')).toHaveCount(1);
+  await expect(button, 'Sound stays available on the full-screen stage').toBeInViewport({ ratio: 1 });
   const box = await button.boundingBox();
   expect(box!.width).toBeGreaterThanOrEqual(44);
   expect(box!.height).toBeGreaterThanOrEqual(44);
   expect(await button.evaluate(element => {
     const rect = element.getBoundingClientRect();
-    return document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)?.closest('#sound-button') === element;
+    return document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)?.closest('#sound') === element;
   }), 'The visible sound control is exposed to touch').toBe(true);
 }
 
@@ -164,7 +163,7 @@ test('touch users can load, scrub, select every mode and compare sound models', 
   await expectTouchTargets(page);
   await expectSoundControlVisible(page);
   await expect(page.locator('#frequency-number')).toHaveValue('28.6');
-  await expect(page.locator('#wavelength')).toHaveText('12.00');
+  await expect(page.locator('#readout-wavelength')).toHaveAttribute('data-value', '12.00');
   const slider = page.locator('#frequency');
   await slider.scrollIntoViewIfNeeded();
   const box = await slider.boundingBox();
@@ -174,24 +173,24 @@ test('touch users can load, scrub, select every mode and compare sound models', 
     { x: box.x + box.width * 0.2, y: box.y + box.height / 2 },
     { x: box.x + box.width * 0.75, y: box.y + box.height / 2 });
   await expect.poll(async () => Number(await page.locator('#frequency-number').inputValue())).toBeGreaterThan(100);
-  await expect(page.locator('#wavelength')).not.toHaveText('12.00');
+  await expect(page.locator('#readout-wavelength')).not.toHaveAttribute('data-value', '12.00');
 
-  for (const [axis, frequency, indices] of [
-    ['height', '61.3', '(0, 0, 1)'],
-    ['width', '42.9', '(0, 1, 0)'],
-    ['length', '28.6', '(1, 0, 0)'],
+  for (const [preset, frequency, indices] of [
+    ['3', '61.3', '(0, 0, 1)'],
+    ['2', '42.9', '(0, 1, 0)'],
+    ['1', '28.6', '(1, 0, 0)'],
   ]) {
-    await page.locator(`[data-axis="${axis}"]`).tap();
+    await page.locator(`[data-mode="${preset}"]`).tap();
     await expect(page.locator('#frequency-number')).toHaveValue(frequency);
-    await expect(page.locator('#mode-indices')).toHaveText(indices);
+    await expect(page.locator('#readout-mode')).toHaveText(indices);
   }
 
-  await page.locator('#belief-button').tap();
-  await expect(page.locator('#belief-button')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#field-low-label')).toHaveText('Far');
-  await page.locator('#physics-button').tap();
-  await expect(page.locator('#physics-button')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#field-low-label')).toHaveText('Node');
+  await page.locator('#view-wrong').tap();
+  await expect(page.locator('#view-wrong')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#readout-mode')).toHaveText('none');
+  await page.locator('#view-right').tap();
+  await expect(page.locator('#view-right')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#readout-mode')).toHaveText('(1, 0, 0)');
 
   // Exercise a live orientation transition, preserving the experiment in this page.
   const originalViewport = page.viewportSize()!;
@@ -211,7 +210,7 @@ test('touch users can load, scrub, select every mode and compare sound models', 
   await page.evaluate(() => window.scrollTo(0, 0));
   await expectRoomAndFrequencyInViewport(page);
 
-  await page.locator('#how-button').tap();
+  await page.locator('#help').tap();
   await expect(page.getByRole('dialog')).toBeVisible();
   const closeButton = page.getByRole('button', { name: 'Close explanation' });
   const closeBox = await closeButton.boundingBox();
@@ -223,7 +222,8 @@ test('touch users can load, scrub, select every mode and compare sound models', 
 
 test('a finger drags the mic directly while an empty-room gesture only orbits', async ({ page }) => {
   const target = await micTarget(page);
-  const positionBefore = await page.locator('#position-readout').innerText();
+  const mic = page.locator('[data-callout="mic"]');
+  const positionBefore = await mic.getAttribute('data-position');
   const canvasBox = await page.locator('canvas').boundingBox();
   if (!canvasBox) throw new Error('Room canvas has no touch target');
   const roomLabel = page.locator('[data-callout="speaker"]');
@@ -236,52 +236,51 @@ test('a finger drags the mic directly while an empty-room gesture only orbits', 
       type: 'touchMove',
       touchPoints: [{ id: 1, x: target.x + 23, y: target.y + 3, radiusX: 7, radiusY: 7, force: 1 }],
     });
-    await expect(page.locator('#position-readout'), 'Small finger jitter does not move the mic').toHaveText(positionBefore);
+    await expect(mic, 'Small finger jitter does not move the mic').toHaveAttribute('data-position', positionBefore!);
   });
   await expect(page.locator('body')).not.toHaveClass(/dragging-mic/);
-  await expect(page.locator('#position-readout')).not.toHaveText(positionBefore);
+  await expect(mic).not.toHaveAttribute('data-position', positionBefore!);
   await expect(roomLabel, 'Mic dragging does not orbit the camera').toHaveAttribute('style', roomProjectionBefore!);
 
-  const positionAfter = await page.locator('#position-readout').innerText();
+  const positionAfter = await mic.getAttribute('data-position');
   const projectionBefore = await page.locator('[data-callout="mic"]').getAttribute('style');
   const emptyPoint = { x: canvasBox.x + canvasBox.width * 0.15, y: canvasBox.y + canvasBox.height * 0.25 };
   expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, emptyPoint)).toBe('CANVAS');
   await swipe(page, emptyPoint, { x: emptyPoint.x + 65, y: emptyPoint.y + 20 }, async () => {
     await expect(page.locator('body')).not.toHaveClass(/dragging-mic/);
   });
-  await expect(page.locator('#position-readout')).toHaveText(positionAfter);
+  await expect(mic).toHaveAttribute('data-position', positionAfter!);
   await expect(page.locator('[data-callout="mic"]')).not.toHaveAttribute('style', projectionBefore!);
 });
 
 test('the note starts on a tap, follows pressure, and stops when the tab hides', async ({ page }) => {
   expect((await audioState(page)).contextCount).toBe(0);
-  const button = page.locator('#sound-button');
+  const button = page.locator('#sound');
   const play = page.locator('#play');
   await expect(button).toHaveAttribute('aria-pressed', 'true');
   await expect(button).toHaveAccessibleName('Sound on. Mute sound');
-  await expect(page.locator('#sound-label')).toHaveText('Sound on');
   await expectSoundControlVisible(page);
-  await page.locator('#peak-button').tap();
+  await page.locator('#mic-corner').tap();
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-  expect(await page.evaluate(() => scrollY)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => scrollY), 'The full-screen stage does not scroll').toBe(0);
   await expectSoundControlVisible(page);
   await play.tap();
   await expect(play).toHaveAttribute('aria-pressed', 'true');
   await expect(play).toHaveAccessibleName('Stop note');
   await expect.poll(async () => (await audioState(page)).state).toBe('running');
   await expect.poll(async () => (await audioState(page)).gain).toBeGreaterThan(0.08);
-  await page.locator('#quiet-button').tap();
+  await page.locator('#mic-node').tap();
   await expect.poll(async () => (await audioState(page)).gain).toBeLessThan(0.0021);
-  await page.locator('[data-axis="width"]').tap();
+  await page.locator('[data-mode="2"]').tap();
   await expect.poll(async () => (await audioState(page)).frequency).toBeCloseTo(42.9, 1);
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await expectSoundControlVisible(page);
   await button.tap();
   await expect(button).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.locator('#sound-label')).toHaveText('Sound off');
+  await expect(button).toHaveAccessibleName('Sound off. Enable sound');
   await expect.poll(async () => (await audioState(page)).state).toBe('suspended');
 
-  await page.locator('#peak-button').tap();
+  await page.locator('#mic-corner').tap();
   await button.tap();
   await expect(button).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(async () => (await audioState(page)).gain).toBeGreaterThan(0.08);
