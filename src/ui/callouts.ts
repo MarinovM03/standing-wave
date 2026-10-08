@@ -1,3 +1,4 @@
+import type { Position } from '../model/room';
 import { CALLOUT_IDS, type Anchors, type CalloutId, type ScreenRect } from '../scene/anchors';
 import { element } from './dom';
 
@@ -10,6 +11,7 @@ export type CalloutReadings = {
   antinodeDb: number;
   half: number;
   distance: number;
+  positions: { mic: Position; speaker: Position };
 };
 export type LayoutItem = { id: CalloutId; x: number; y: number; width: number; height: number };
 export type Layout = Map<CalloutId, { placement: number; label: ScreenRect }>;
@@ -106,6 +108,20 @@ export function layoutCallouts(
 
 const decibels = (db: number) => `${db > -0.05 ? '0.0' : db.toFixed(1).replace('-', '−')} dB`;
 
+// You'd think has no coupling, so the speaker is named without a value.
+export function calloutValues(view: CalloutView, readings: CalloutReadings): Record<CalloutId, string> {
+  return {
+    mic: decibels(readings.micDb),
+    speaker: view === 'belief' ? '' : `${Math.round(readings.speaker * 100)}%`,
+    node: `${readings.node.toFixed(2)} m`,
+    antinode: decibels(readings.antinodeDb),
+    half: `${readings.half.toFixed(2)} m`,
+    distance: `${readings.distance.toFixed(1)} m`,
+  };
+}
+
+const position = ({ x, y, z }: Position) => `${x.toFixed(2)} ${y.toFixed(2)} ${z.toFixed(2)}`;
+
 type Callout = {
   root: HTMLDivElement;
   leader: HTMLSpanElement;
@@ -134,34 +150,36 @@ export function createCallouts(container: HTMLElement) {
   container.append(layer);
   let view: CalloutView = 'physics';
   let previous: Map<CalloutId, number> = new Map();
+  let obstacles: readonly ScreenRect[] = [];
 
   function setReadings(nextView: CalloutView, readings: CalloutReadings): void {
     view = nextView;
-    const text: Record<CalloutId, string> = {
-      mic: decibels(readings.micDb),
-      speaker: `${Math.round(readings.speaker * 100)}%`,
-      node: `${readings.node.toFixed(2)} m`,
-      antinode: decibels(readings.antinodeDb),
-      half: `${readings.half.toFixed(2)} m`,
-      distance: `${readings.distance.toFixed(1)} m`,
-    };
+    const text = calloutValues(view, readings);
     for (const [id, callout] of callouts) {
       if (callout.value.textContent !== text[id]) callout.value.textContent = text[id];
     }
     const mic = callouts.get('mic')!.root;
     mic.dataset.amplitude = readings.amplitude.toFixed(6);
     mic.dataset.pressure = readings.amplitude < 0.13 ? 'quiet' : readings.amplitude > 0.72 ? 'hot' : 'mid';
+    mic.dataset.position = position(readings.positions.mic);
+    callouts.get('speaker')!.root.dataset.position = position(readings.positions.speaker);
+  }
+
+  // Interface rects in the container's pixels; labels and rings stay off them.
+  function setObstacles(rects: readonly ScreenRect[]): void {
+    obstacles = rects;
   }
 
   function place(anchors: Anchors): void {
     const type = phone.matches ? TYPE.phone : TYPE.desktop;
     const height = type.line + 2 * PADDING.y;
-    const width = (id: CalloutId) => Math.ceil((NAMES[id].length + 1 + WIDEST[id].length) * type.size * ADVANCE) + 2 * PADDING.x;
+    const named = (id: CalloutId) => view === 'belief' && id === 'speaker';
+    const width = (id: CalloutId) => Math.ceil((NAMES[id].length + (named(id) ? 0 : 1 + WIDEST[id].length)) * type.size * ADVANCE) + 2 * PADDING.x;
     const items = ORDER[view]
       .slice(0, phone.matches ? LIMIT.phone : LIMIT.desktop)
       .filter((id) => anchors.points[id].visible)
       .map((id) => ({ id, x: anchors.points[id].x, y: anchors.points[id].y, width: width(id), height }));
-    const layout = layoutCallouts(items, anchors, anchors.plate ? [anchors.plate] : [], previous);
+    const layout = layoutCallouts(items, anchors, anchors.plate ? [anchors.plate, ...obstacles] : obstacles, previous);
     previous = new Map([...layout].map(([id, { placement }]) => [id, placement]));
 
     for (const [id, callout] of callouts) {
@@ -201,5 +219,5 @@ export function createCallouts(container: HTMLElement) {
     layer.remove();
   }
 
-  return { setReadings, place, dispose };
+  return { setReadings, setObstacles, place, dispose };
 }

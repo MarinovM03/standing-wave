@@ -1,26 +1,53 @@
 import { Stage } from '../scene/stage';
-import { COORDINATE, type Axis } from '../model/room';
+import type { ScreenRect } from '../scene/anchors';
+import { COORDINATE } from '../model/room';
 import { antinodePlanes, coupling, getNearestMode, halfWavelength, nodePlanes, relativeDb, sampleField, wavelength, type Mode } from '../model/acoustics';
+import { createActions } from '../ui/actions';
+import { createAnnouncer } from '../ui/announcer';
 import { createCallouts } from '../ui/callouts';
+import { PAGE, TOASTS } from '../ui/copy';
+import { createDock } from '../ui/dock';
+import { createHelp } from '../ui/help';
+import { createLayout } from '../ui/layout';
 import { adoptTitleBlock } from '../ui/title';
-import { createExperimentView } from '../ui/view';
+import { createToast } from '../ui/toast';
 import { NoteAudio, type AudioFailure, type AudioStatus } from './audio';
 import { keyCommand, type KeyCommand, type KeyFocus } from './keys';
-import { INITIAL_STATE, transition, type Action, type LabState, type Preset } from './state';
+import { shareLink } from './share';
+import { INITIAL_STATE, activePreset, transition, type Action, type LabState } from './state';
 
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-const AXIS_PRESETS: Record<Axis, Preset> = { length: 1, width: 2, height: 3 };
+const CLEARANCE = 8;
 
 let state: LabState = INITIAL_STATE;
 let audioStatus: AudioStatus = 'off';
 let toneAnnounced = false;
 
-const view = createExperimentView(document.querySelector<HTMLDivElement>('#app')!);
-const { controls } = view;
 const title = adoptTitleBlock();
-controls.scene.before(title.element);
+const toast = createToast();
+const help = createHelp();
+const actions = createActions({
+  sound: () => dispatch({ type: 'toggleSound' }),
+  cinematic: () => toggleCinematic(),
+  share: () => void share(),
+  help: () => help.open(),
+});
+const dock = createDock({
+  view: view => dispatch({ type: 'setView', view }),
+  frequency: frequency => dispatch({ type: 'setFrequency', frequency }),
+  play: () => dispatch({ type: 'togglePlay' }),
+  preset: preset => dispatch({ type: 'preset', preset }),
+  micHeight: y => dispatch({ type: 'setMicHeight', y }),
+  micNode: () => dispatch({ type: 'micToNode' }),
+  micCorner: () => dispatch({ type: 'micToCorner' }),
+  speakerMiddle: () => dispatch({ type: 'speakerToMiddle' }),
+});
+const layout = createLayout(document.querySelector<HTMLDivElement>('#app')!, {
+  title: title.element, actions: actions.element, dock: dock.element, toast: toast.element, dialog: help.element,
+});
+const announcer = createAnnouncer(layout.stage);
+const callouts = createCallouts(layout.scene);
 const audio = new NoteAudio();
-const callouts = createCallouts(controls.scene);
 const events = new AbortController();
 let room: Stage | undefined;
 
@@ -30,11 +57,12 @@ function calloutReadings(mode: Mode, amplitude: number) {
   return {
     amplitude,
     micDb: relativeDb(amplitude),
-    speaker: state.view === 'belief' ? 1 : coupling(speaker, mode),
+    speaker: coupling(speaker, mode),
     node: nodePlanes(mode)[0],
     antinodeDb: relativeDb(sampleField(antinode, frequency, 'physics', mode, speaker)),
     half: halfWavelength(mode),
     distance: Math.hypot(mic.x - speaker.x, mic.y - speaker.y, mic.z - speaker.z),
+    positions: { mic, speaker },
   };
 }
 
@@ -47,9 +75,10 @@ function update() {
   const mode = getNearestMode(state.frequency);
   const amplitude = sampleField(state.mic, state.frequency, state.view, mode, state.speaker);
   const db = relativeDb(amplitude);
-  const waveLength = wavelength(state.frequency);
-  view.render(state, { mode, amplitude, db, wavelength: waveLength }, audioStatus === 'starting');
-  title.setReadings({ view: state.view, frequency: state.frequency, wavelength: waveLength, indices: mode.indices, db });
+  dock.render({ view: state.view, frequency: state.frequency, micHeight: state.mic.y, playing: state.playing, preset: activePreset(state.frequency) });
+  actions.render({ sound: state.sound, soundPending: audioStatus === 'starting', cinematic: state.cinematic });
+  title.setReadings({ view: state.view, frequency: state.frequency, wavelength: wavelength(state.frequency), indices: mode.indices, db });
+  announcer.update(state.view, mode, amplitude);
   callouts.setReadings(state.view, calloutReadings(mode, amplitude));
   audio.update(state.frequency, amplitude);
   room?.setState(stageState(amplitude));
@@ -70,7 +99,7 @@ function toggleCinematic() {
 
 function setUIHidden(action: Action) {
   dispatch(action);
-  view.setHidden(state.uiHidden);
+  layout.setHidden(state.uiHidden);
 }
 
 function reset(full: boolean) {
@@ -79,14 +108,17 @@ function reset(full: boolean) {
   if (wasCinematic) room?.setCinematic(false);
   room?.resetCamera();
   if (full) {
-    view.setHidden(state.uiHidden);
-    if (controls.dialog.open) controls.dialog.close();
+    layout.setHidden(state.uiHidden);
+    help.close();
   }
-  view.toast(full ? 'Full reset' : 'Experiment reset');
+  toast.show(full ? TOASTS.fullReset : TOASTS.reset);
 }
 
-function openHelp() {
-  if (!controls.dialog.open) controls.dialog.showModal();
+async function share() {
+  const url = document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href ?? location.href;
+  const result = await shareLink({ title: PAGE.title, text: PAGE.description, url });
+  if (result === 'copied') toast.show(TOASTS.copied);
+  else if (result === 'failed') toast.show(TOASTS.copyFailed);
 }
 
 function run(command: KeyCommand) {
@@ -98,7 +130,7 @@ function run(command: KeyCommand) {
     case 'reset': return reset(false);
     case 'fullReset': return reset(true);
     case 'sound': return dispatch({ type: 'toggleSound' });
-    case 'help': return openHelp();
+    case 'help': return help.open();
     case 'hideUI': return setUIHidden({ type: 'toggleUI' });
     case 'escape': return setUIHidden({ type: 'showUI' });
     case 'moveMic': return dispatch({ type: 'nudgeMic', dx: command.dx, dz: command.dz });
@@ -113,54 +145,47 @@ function keyFocus(target: EventTarget | null): KeyFocus {
   return 'other';
 }
 
+function interfaceRects(): ScreenRect[] {
+  const origin = layout.scene.getBoundingClientRect();
+  return [title.element, dock.element, actions.element].flatMap(target => {
+    const rect = target.getBoundingClientRect();
+    if (rect.width <= 1 || rect.height <= 1) return [];
+    return [{
+      left: rect.left - origin.left - CLEARANCE,
+      top: rect.top - origin.top - CLEARANCE,
+      right: rect.right - origin.left + CLEARANCE,
+      bottom: rect.bottom - origin.top + CLEARANCE,
+    }];
+  });
+}
+
+let insetsKey = '';
+
+function updateInsets() {
+  const rects = interfaceRects();
+  const key = rects.map(rect => [rect.left, rect.top, rect.right, rect.bottom].map(Math.round).join(',')).join(';');
+  if (key === insetsKey) return;
+  insetsKey = key;
+  room?.setInsets(rects);
+  callouts.setObstacles(rects);
+}
+
 audio.onStatusChange = status => {
   audioStatus = status;
   if (status === 'on' && !toneAnnounced) {
     toneAnnounced = true;
-    view.toast('Tone on · Start with a low device volume');
+    toast.show(TOASTS.toneOn);
   }
   update();
 };
 audio.onFailure = (failure: AudioFailure) => {
   dispatch({ type: 'soundFailed' });
-  view.toast(failure === 'blocked'
-    ? 'Audio could not start. Your browser may have blocked it.'
-    : 'The browser paused the sound. Press M to turn it back on.');
+  toast.show(failure === 'blocked' ? TOASTS.blocked : TOASTS.interrupted);
 };
 
-controls.frequencyRange.addEventListener('input', () => dispatch({ type: 'setFrequency', frequency: Number(controls.frequencyRange.value) }));
-controls.frequencyNumber.addEventListener('change', () => {
-  dispatch({ type: 'setFrequency', frequency: Number(controls.frequencyNumber.value) });
-  controls.frequencyNumber.value = state.frequency.toFixed(1);
-});
-controls.frequencyNumber.addEventListener('blur', () => {
-  controls.frequencyNumber.value = state.frequency.toFixed(1);
-});
-controls.heightRange.addEventListener('input', () => dispatch({ type: 'setMicHeight', y: Number(controls.heightRange.value) }));
-controls.modeButtons.forEach(button => {
-  button.addEventListener('click', () => dispatch({ type: 'preset', preset: AXIS_PRESETS[button.dataset.axis as Axis] }));
-});
-controls.belief.addEventListener('click', () => dispatch({ type: 'setView', view: 'belief' }));
-controls.physics.addEventListener('click', () => dispatch({ type: 'setView', view: 'physics' }));
-controls.quiet.addEventListener('click', () => dispatch({ type: 'micToNode' }));
-controls.peak.addEventListener('click', () => dispatch({ type: 'micToCorner' }));
-controls.sound.addEventListener('click', () => dispatch({ type: 'toggleSound' }));
-controls.play.addEventListener('click', () => dispatch({ type: 'togglePlay' }));
-controls.camera.addEventListener('click', toggleCinematic);
-controls.speakerMiddle.addEventListener('click', () => dispatch({ type: 'speakerToMiddle' }));
-controls.reset.addEventListener('click', () => reset(false));
-controls.restore.addEventListener('click', () => setUIHidden({ type: 'toggleUI' }));
-controls.how.addEventListener('click', openHelp);
-controls.dialog.addEventListener('click', event => {
-  if (event.target !== controls.dialog) return;
-  const box = controls.dialog.getBoundingClientRect();
-  if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) {
-    controls.dialog.close();
-  }
-});
-
+layout.restore.addEventListener('click', () => setUIHidden({ type: 'showUI' }), { signal: events.signal });
 document.addEventListener('keydown', event => {
-  const command = keyCommand(event, { focus: keyFocus(event.target), dialogOpen: controls.dialog.open });
+  const command = keyCommand(event, { focus: keyFocus(event.target), dialogOpen: help.isOpen() });
   if (!command) return;
   event.preventDefault();
   run(command);
@@ -171,10 +196,10 @@ document.addEventListener('visibilitychange', () => {
 
 update();
 try {
-  room = new Stage(controls.scene, stageState(sampleField(state.mic, state.frequency, state.view, undefined, state.speaker)), {
+  room = new Stage(layout.scene, stageState(sampleField(state.mic, state.frequency, state.view, undefined, state.speaker)), {
     onMicMove: position => dispatch({ type: 'moveMic', position }),
     onSpeakerMove: position => dispatch({ type: 'moveSpeaker', position }),
-    onDragChange: target => view.setDragging(target === 'mic'),
+    onDragChange: target => layout.setDragging(target),
     onCameraInteraction: () => {
       if (state.cinematic) dispatch({ type: 'leaveCinematic' });
     },
@@ -183,16 +208,25 @@ try {
   update();
 } catch (error) {
   console.error('Unable to initialize the room renderer', error);
-  view.showRendererFallback();
+  layout.showRendererFallback();
 }
+
+const interfaceObserver = new ResizeObserver(updateInsets);
+for (const target of [layout.scene, title.element, dock.element, actions.element]) interfaceObserver.observe(target);
 
 if (import.meta.hot) import.meta.hot.dispose(() => {
   events.abort();
+  interfaceObserver.disconnect();
   audio.onStatusChange = undefined;
   audio.onFailure = undefined;
   room?.dispose();
   callouts.dispose();
+  announcer.dispose();
   audio.dispose();
   title.dispose();
-  view.dispose();
+  dock.dispose();
+  actions.dispose();
+  toast.dispose();
+  help.dispose();
+  layout.dispose();
 });

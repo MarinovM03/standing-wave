@@ -40,6 +40,8 @@
 
 .readouts {
   display: flex;
+  flex-wrap: wrap;
+  row-gap: 10px;
   margin: 20px 0 0;
 }
 
@@ -74,8 +76,9 @@
 
 .stage > .title-block {
   position: absolute;
-  top: 32px;
-  left: 38px;
+  top: max(32px, env(safe-area-inset-top));
+  left: max(38px, env(safe-area-inset-left));
+  width: 30rem;
   z-index: 2;
   pointer-events: none;
   text-shadow: 0 0 3px var(--ink), 0 0 12px var(--ink), 0 0 24px var(--ink);
@@ -109,11 +112,17 @@ body > .title-block {
   color: var(--muted);
 }
 
-@media (max-width: 800px) {
+@media (max-width: 900px) {
   .stage > .title-block {
-    position: static;
-    grid-row: 1;
-    grid-column: 1;
+    max-width: calc(100% - 38px - 178px - var(--edge) - 16px);
+  }
+}
+
+@media (max-width: 640px) {
+  .stage > .title-block {
+    top: max(var(--edge), env(safe-area-inset-top));
+    left: max(var(--edge), env(safe-area-inset-left));
+    max-width: calc(100% - 2 * var(--edge) - 44px - 12px);
   }
 
   .title-block__kicker {

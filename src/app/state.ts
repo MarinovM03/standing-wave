@@ -21,6 +21,17 @@ export const PRESETS: Readonly<Record<Preset, { axis: Axis; order: number }>> = 
   4: { axis: 'length', order: 2 },
 };
 
+const RESONANCE_HZ = 0.6;
+
+export function activePreset(frequency: number): Preset | null {
+  const mode = getNearestMode(frequency);
+  if (Math.abs(frequency - mode.frequency) >= RESONANCE_HZ) return null;
+  for (const preset of [1, 2, 3, 4] as const) {
+    if (PRESETS[preset].axis === mode.axis && PRESETS[preset].order === mode.order) return preset;
+  }
+  return null;
+}
+
 export const INITIAL_STATE: LabState = {
   frequency: modeForAxis('length').frequency,
   mic: { x: 4.9, y: 1.2, z: 2.75 },

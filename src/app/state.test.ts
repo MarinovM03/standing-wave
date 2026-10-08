@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getNearestMode, modeForAxis, nodePlanes } from '../model/acoustics';
 import { MIC_CORNER, ROOM, SPEAKER, SPEAKER_MIDDLE } from '../model/room';
-import { INITIAL_STATE, PRESETS, transition, type Action, type LabState } from './state';
+import { INITIAL_STATE, PRESETS, activePreset, transition, type Action, type LabState } from './state';
 
 function run(...actions: Action[]): LabState {
   return actions.reduce(transition, INITIAL_STATE);
@@ -90,5 +90,15 @@ describe('lab state', () => {
     const frozen = Object.freeze({ ...INITIAL_STATE, mic: Object.freeze({ ...INITIAL_STATE.mic }) });
     expect(() => transition(frozen, { type: 'nudgeMic', dx: 0.1, dz: 0 })).not.toThrow();
     expect(frozen.mic.x).toBe(4.9);
+  });
+
+  it('marks the preset that is sounding, and none between modes', () => {
+    for (const preset of [1, 2, 3, 4] as const) {
+      const { axis, order } = PRESETS[preset];
+      expect(activePreset(modeForAxis(axis, order).frequency)).toBe(preset);
+    }
+    expect(activePreset(28.6)).toBe(1);
+    expect(activePreset(35)).toBeNull();
+    expect(activePreset(85.75)).toBeNull();
   });
 });

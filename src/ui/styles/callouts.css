@@ -1,6 +1,4 @@
 .callouts {
-  --paper: #f0ebdf;
-  --muted: #a39d90;
   --leader: rgba(240, 235, 223, 0.6);
   position: absolute;
   inset: 0;
@@ -57,7 +55,7 @@
   gap: 1ch;
   padding: 4px 6px;
   overflow: hidden;
-  font: 500 11px/14px 'JetBrains Mono', ui-monospace, monospace;
+  font: 500 11px/14px var(--font-mono);
   white-space: nowrap;
   color: var(--paper);
   background: rgba(15, 14, 12, 0.62);
@@ -70,6 +68,10 @@
 
 .callout__value {
   font-variant-numeric: tabular-nums;
+}
+
+.callout__value:empty {
+  display: none;
 }
 
 @media (max-width: 640px), (max-height: 500px) {

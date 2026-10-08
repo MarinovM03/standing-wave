@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ScreenRect } from '../scene/anchors';
-import { PLACEMENTS, layoutCallouts, type LayoutItem } from './callouts';
+import { PLACEMENTS, calloutValues, layoutCallouts, type LayoutItem } from './callouts';
 
 const bounds = { width: 800, height: 500 };
 const item = (id: LayoutItem['id'], x: number, y: number): LayoutItem => ({ id, x, y, width: 130, height: 22 });
@@ -55,5 +55,20 @@ describe('callout placement', () => {
       }
       expect(placed.length).toBeLessThanOrEqual(5);
     }
+  });
+});
+
+describe('callout values', () => {
+  const readings = {
+    amplitude: 0.9, micDb: -0.9, speaker: 0.994, node: 3, antinodeDb: -0.1, half: 6, distance: 4.7,
+    positions: { mic: { x: 4.9, y: 1.2, z: 2.75 }, speaker: { x: 0.25, y: 0.35, z: 0.25 } },
+  };
+
+  it('give the speaker its coupling in Actually', () => {
+    expect(calloutValues('physics', readings)).toMatchObject({ mic: '−0.9 dB', speaker: '99%', node: '3.00 m', half: '6.00 m' });
+  });
+
+  it("name the speaker without a value in You'd think", () => {
+    expect(calloutValues('belief', readings)).toMatchObject({ speaker: '', distance: '4.7 m' });
   });
 });

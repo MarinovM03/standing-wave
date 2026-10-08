@@ -1,0 +1,58 @@
+@media (max-width: 640px) {
+  .actions__buttons {
+    flex-direction: column;
+  }
+
+  .follow {
+    display: none;
+  }
+
+  .dock-area {
+    right: 0;
+    bottom: 0;
+    left: 0;
+    max-width: none;
+  }
+
+  .dock {
+    gap: 8px;
+    padding: 10px max(12px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    border-bottom: 0;
+    border-radius: var(--glass-radius) var(--glass-radius) 0 0;
+  }
+
+  .dock__row {
+    gap: 8px 10px;
+  }
+
+  .dock .key,
+  .dock__group--view .dock__head,
+  .dock__group--modes .dock__head {
+    display: none;
+  }
+
+  .dock__group--view,
+  .dock__group--modes,
+  .dock__group--frequency,
+  .dock__group--height {
+    flex: 1 1 100%;
+  }
+
+  .dock__group--view {
+    flex-basis: auto;
+  }
+
+  .dock__group--frequency {
+    order: 1;
+  }
+
+  .dock__group--mic {
+    flex: 1 1 auto;
+  }
+
+  .segmented > .dock__button,
+  .dock__group--mic .dock__button {
+    flex: 1 1 0;
+    padding: 0 8px;
+  }
+}
