@@ -4,7 +4,7 @@ import type { RoomModel } from './model';
 
 const JUNCTION = 0.45;
 const IN_ROOM_LIFT = 0.021;
-const IN_ROOM_ORDER = 2;
+const ORDER = { underField: 0, overField: 2 };
 
 export type ContactShadows = {
   setMic(position: Position): void;
@@ -38,7 +38,9 @@ export function addContactShadows(scene: THREE.Scene, model: RoomModel, mic: Pos
   const micBlob = flat(new THREE.PlaneGeometry(0.62, 0.62), blobMaterial);
   micBlob.position.set(mic.x, IN_ROOM_LIFT + 0.001, mic.z);
 
-  for (const mesh of [alongBack, alongSide, backWall, sideWall, speaker, micBlob]) mesh.renderOrder = IN_ROOM_ORDER;
+  // The junctions shade the clay beneath the field's light; the blobs still ground the props on top of it.
+  for (const mesh of [alongBack, alongSide, backWall, sideWall]) mesh.renderOrder = ORDER.underField;
+  for (const mesh of [speaker, micBlob]) mesh.renderOrder = ORDER.overField;
   scene.add(plinth, alongBack, alongSide, backWall, sideWall, speaker, micBlob);
 
   return {
