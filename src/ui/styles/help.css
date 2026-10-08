@@ -1,117 +1,241 @@
-.explainer {
-  width: min(760px, calc(100vw - 32px));
-  max-height: calc(100svh - 40px);
-  padding: 40px;
-  overflow: auto;
+.drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: min(440px, 100%);
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
   color: var(--paper);
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--glass-radius);
-  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.5);
-}
-
-.explainer::backdrop {
-  background: rgba(15, 14, 12, 0.8);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-}
-
-.dialog-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 44px;
-  height: 44px;
-  font-size: 24px;
-  color: var(--muted);
-  background: transparent;
   border: 0;
-  border-radius: 8px;
+  border-left: 1px solid var(--line);
+  box-shadow: -24px 0 80px rgba(0, 0, 0, 0.45);
 }
 
-.dialog-close:hover {
-  color: var(--paper);
-  background: var(--raised);
+.drawer[open] {
+  display: flex;
+  flex-direction: column;
+  animation: drawer-in 240ms var(--ease-out);
 }
 
-.dialog-kicker {
-  margin: 0;
+.drawer::backdrop {
+  background: rgba(15, 14, 12, 0.55);
+  animation: drawer-fade var(--fast) var(--ease-out);
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes drawer-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.drawer__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: max(20px, calc(env(safe-area-inset-top) + 8px)) max(16px, calc(env(safe-area-inset-right) + 8px)) 16px 28px;
+  border-bottom: 1px solid var(--line);
+}
+
+.drawer__kicker {
+  margin: 4px 0 0;
   font: 500 11px/16px var(--font-mono);
   letter-spacing: 0.14em;
   color: var(--muted);
 }
 
-.explainer h2 {
-  margin: 14px 0 16px;
-  font: 700 32px/1.1 var(--font-ui);
+.drawer__title {
+  margin: 4px 0 0;
+  font: 700 28px/1.1 var(--font-ui);
   letter-spacing: -0.02em;
 }
 
-.dialog-lede {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.7;
-}
-
-.explanation-grid {
+.drawer__close {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-  margin: 28px 0;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  transition: background var(--fast) var(--ease-out), color var(--fast) var(--ease-out);
+}
+
+.drawer__close:hover {
+  color: var(--paper);
+  background: var(--raised);
+}
+
+.drawer__close .icon {
+  width: 20px;
+  height: 20px;
+}
+
+.drawer__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px max(28px, calc(env(safe-area-inset-right) + 16px)) max(28px, calc(env(safe-area-inset-bottom) + 16px)) 28px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--raised) transparent;
+}
+
+.drawer__follow {
+  display: none;
+}
+
+.drawer__section {
   padding: 24px 0;
-  border-block: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
 
-.explanation-grid section > span {
-  font: 500 10px/14px var(--font-mono);
-  letter-spacing: 0.12em;
+.drawer__section:last-child {
+  border-bottom: 0;
+}
+
+.drawer__heading {
+  margin: 0 0 12px;
+  font: 500 11px/16px var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--muted);
 }
 
-.explainer h3 {
-  margin: 10px 0 8px;
-  font-size: 15px;
-  font-weight: 600;
+.drawer__section p,
+.drawer__section li {
+  font-size: 14px;
+  line-height: 1.6;
 }
 
-.explanation-grid p,
-.model-note p {
+.drawer__section p {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--muted);
 }
 
-.model-note p + p {
+.drawer__section p + p {
   margin-top: 10px;
 }
 
-.dialog-controls {
+.drawer__steps,
+.drawer__list,
+.drawer__sources {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.drawer__steps {
+  counter-reset: step;
+}
+
+.drawer__steps li {
+  position: relative;
+  padding-left: 32px;
+  counter-increment: step;
+}
+
+.drawer__steps li + li {
+  margin-top: 12px;
+}
+
+.drawer__steps li::before {
+  content: counter(step, decimal-leading-zero);
+  position: absolute;
+  top: 3px;
+  left: 0;
+  font: 500 11px/16px var(--font-mono);
+  color: var(--swatch);
+}
+
+.drawer__list li {
+  position: relative;
+  padding-left: 16px;
+  color: color-mix(in srgb, var(--paper) 86%, var(--muted));
+}
+
+.drawer__list li + li {
+  margin-top: 8px;
+}
+
+.drawer__list li::before {
+  content: '';
+  position: absolute;
+  top: 0.75em;
+  left: 0;
+  width: 6px;
+  height: 1px;
+  background: var(--muted);
+}
+
+.drawer__sources a {
+  display: block;
+  padding: 10px 0;
+  color: var(--paper);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--signal) 70%, transparent);
+  text-underline-offset: 3px;
+}
+
+.drawer__sources a:hover {
+  text-decoration-color: var(--signal);
+}
+
+.drawer__keys {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 10px 16px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.drawer__keys dt {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px 24px;
-  margin: 26px 0 16px;
-  font-size: 12px;
-  color: var(--muted);
+  gap: 4px;
 }
 
-.dialog-controls .key {
-  margin-right: 3px;
+.drawer__keys dd {
+  margin: 0;
+  color: color-mix(in srgb, var(--paper) 86%, var(--muted));
 }
 
-.audio-note {
-  margin: 24px 0 0;
-  font-size: 12px;
-  line-height: 1.7;
-  color: var(--muted);
+.drawer__keys .arrow-keys {
+  height: 8px;
 }
 
-@media (max-width: 640px) {
-  .explainer {
-    padding: 28px 20px;
+@media (max-width: 640px), (max-height: 559px) and (pointer: coarse) {
+  .drawer__follow {
+    display: inline-flex;
+    margin-top: 20px;
   }
 
-  .explanation-grid {
-    grid-template-columns: 1fr;
+  .drawer__head {
+    padding-left: max(20px, calc(env(safe-area-inset-left) + 8px));
+  }
+
+  .drawer__body {
+    padding-left: max(20px, calc(env(safe-area-inset-left) + 8px));
+    padding-right: max(20px, calc(env(safe-area-inset-right) + 8px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer[open],
+  .drawer::backdrop {
+    animation: none;
   }
 }

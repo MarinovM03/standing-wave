@@ -1,53 +1,91 @@
+import { ACTIONS, HELP, TITLE_BLOCK } from './copy';
 import { element } from './dom';
+import { arrowKeys, icon } from './icons';
 
-const keys = (...names: string[]) => names.map(name => element('kbd', { class: 'key' }, name));
+export const HELP_ID = 'help-drawer';
 
-function section(index: string, title: string, text: string) {
-  return element('section', {}, element('span', {}, index), element('h3', {}, title), element('p', {}, text));
+type KeyRow = (typeof HELP.keys)[number];
+
+function section(id: keyof typeof HELP.sections, ...content: HTMLElement[]) {
+  const heading = element('h3', { id: `help-${id}`, class: 'drawer__heading' }, HELP.sections[id]);
+  return element('section', { class: 'drawer__section', 'aria-labelledby': heading.id }, heading, ...content);
 }
 
-function explainer() {
-  return [
-    element('form', { method: 'dialog' }, element('button', { class: 'dialog-close', 'aria-label': 'Close explanation' }, '×')),
-    element('p', { class: 'dialog-kicker' }, 'STANDING WAVE / FIELD NOTES 001'),
-    element('h2', { id: 'dialog-title' }, 'The room plays along.'),
-    element('p', { class: 'dialog-lede' }, "The bass isn't louder in the corner because the speaker is. The room is stacking the wave. Bass bounces between walls; at certain frequencies, the returning wave lines up with the next one. Some places get a pressure peak. Others nearly cancel."),
-    element('div', { class: 'explanation-grid' },
-      section('01 / WAVELENGTH', 'Does the wave fit?', 'At 28.6 Hz, a sound wave is about 12 metres long. Half of it fits in this 6-metre room: its first length mode.'),
-      section('02 / NODES', 'A quiet place.', "A pressure node is where this mode cancels. In the first length mode, drag the mic through the dark central band. The speaker hasn't changed."),
-      section('03 / ANTINODES', 'The walls get loud.', 'A pressure antinode is a peak. Each axial mode peaks at its pair of opposing boundaries. Corners meet several walls, so bass often builds there.')),
-    element('div', { class: 'model-note' },
-      element('h3', {}, 'Real relationships. A simplified room.'),
-      element('p', {}, "Rigid rectangular room, sound speed 343 m/s. We isolate the nearest axial mode and soften its response away from resonance. Real rooms mix many modes, absorb sound, and have furnishings. The You'd think view is a simple distance model. Levels are relative to an ideal mode peak, never calibrated sound pressure levels."),
-      element('p', {}, 'The glow shows pressure amplitude, not moving air. The gentle pulse is slowed for visibility; your tone plays at the selected frequency. This is a steady-state mode explorer, not a simulation of sound travelling or reverberation.')),
-    element('div', { class: 'dialog-controls' },
-      element('span', {}, ...keys('1', '2', '3'), ' length / width / height'),
-      element('span', {}, ...keys('4'), ' second length mode'),
-      element('span', {}, ...keys('C'), ' cinematic'),
-      element('span', {}, ...keys('R'), ' reset experiment'),
-      element('span', {}, ...keys('/'), ' interface'),
-      element('span', {}, ...keys('ESC'), ' close / show UI'),
-      element('span', {}, 'Drag to orbit · right-drag to pan · scroll to zoom'),
-      element('span', {}, 'WASD to move · Shift to move faster'),
-      element('span', {}, ...keys('Left', 'Right'), ' mic along length · ', ...keys('Up', 'Down'), ' mic along width')),
-    element('p', { class: 'audio-note' }, 'Sound starts only when you ask. Begin at a comfortable device volume; small speakers may not reproduce the lowest tones.'),
-  ];
+const items = (tag: 'ul' | 'ol', className: string, texts: readonly string[]) =>
+  element(tag, { class: className }, ...texts.map(text => element('li', {}, text)));
+
+function keyRow(row: KeyRow) {
+  const keys = 'arrows' in row
+    ? [element('kbd', { class: 'key' }, arrowKeys('all'))]
+    : row.keys.map(name => element('kbd', { class: 'key' }, name));
+  return [element('dt', {}, ...keys), element('dd', {}, row.action)];
 }
 
+function sources() {
+  return element('ul', { class: 'drawer__sources' }, ...HELP.sources.map(source =>
+    element('li', {}, element('a', { href: source.href, target: '_blank', rel: 'noopener noreferrer' }, source.name))));
+}
+
+function body() {
+  return element('div', { class: 'drawer__body' },
+    element('a', {
+      class: 'follow drawer__follow', href: ACTIONS.follow.href, target: '_blank', rel: 'noopener noreferrer', 'aria-label': ACTIONS.follow.label,
+    }, ACTIONS.follow.text),
+    section('idea', ...HELP.idea.map(text => element('p', {}, text))),
+    section('steps', items('ol', 'drawer__steps', HELP.steps)),
+    section('real', items('ul', 'drawer__list', HELP.real)),
+    section('simplified', items('ul', 'drawer__list', HELP.simplified)),
+    section('sources', sources()),
+    section('keys', element('dl', { class: 'drawer__keys' }, ...HELP.keys.flatMap(keyRow))));
+}
+
+// Focus returns to whatever controls the drawer, unless a pointer closed it.
 export function createHelp() {
   const abort = new AbortController();
-  const dialog = element('dialog', { id: 'how-dialog', class: 'explainer', 'aria-labelledby': 'dialog-title' }, ...explainer());
+  const signal = abort.signal;
+  const close = element('button', { type: 'button', class: 'drawer__close', 'aria-label': HELP.close }, icon('close'));
+  const head = element('header', { class: 'drawer__head' },
+    element('div', {}, element('p', { class: 'drawer__kicker' }, TITLE_BLOCK.kicker), element('h2', { id: 'help-title', class: 'drawer__title' }, HELP.title)),
+    close);
+  const dialog = element('dialog', { id: HELP_ID, class: 'drawer', 'aria-labelledby': 'help-title' }, head, body());
+  let pointerClose = false;
+
+  close.addEventListener('click', () => dialog.close(), { signal });
+  dialog.addEventListener('pointerdown', () => {
+    pointerClose = true;
+  }, { signal });
   dialog.addEventListener('click', event => {
     if (event.target !== dialog) return;
     const box = dialog.getBoundingClientRect();
     if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.close();
-  }, { signal: abort.signal });
+  }, { signal });
+  dialog.addEventListener('keydown', event => {
+    pointerClose = false;
+    if (event.key !== 'Tab') return;
+    const stops = Array.from(dialog.querySelectorAll<HTMLElement>('button, a[href]')).filter(stop => stop.getClientRects().length > 0);
+    const first = stops[0];
+    const last = stops.at(-1);
+    if (!first || !last) return;
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || !dialog.contains(active))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }, { signal });
+  dialog.addEventListener('close', () => {
+    if (!pointerClose) document.querySelector<HTMLElement>(`[aria-controls="${HELP_ID}"]`)?.focus();
+  }, { signal });
 
   function open() {
-    if (!dialog.open) dialog.showModal();
+    if (dialog.open) return;
+    pointerClose = false;
+    dialog.showModal();
   }
 
-  function close() {
+  function closeDrawer() {
     if (dialog.open) dialog.close();
   }
 
@@ -56,5 +94,5 @@ export function createHelp() {
     dialog.remove();
   }
 
-  return { element: dialog, isOpen: () => dialog.open, open, close, dispose };
+  return { element: dialog, isOpen: () => dialog.open, open, close: closeDrawer, dispose };
 }

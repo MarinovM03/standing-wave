@@ -1,5 +1,6 @@
 import { ACTIONS, KEYS } from './copy';
 import { clickWithoutFocus, element } from './dom';
+import { HELP_ID } from './help';
 import { icon, type IconName } from './icons';
 
 export type ActionsState = Readonly<{ sound: boolean; soundPending: boolean; cinematic: boolean }>;
@@ -32,6 +33,8 @@ export function createActions(events: ActionsEvents) {
   const share = action('share', 'share', ACTIONS.share);
   const help = action('help', 'help', ACTIONS.help, KEYS.help);
   help.root.setAttribute('aria-keyshortcuts', `${KEYS.help} ?`);
+  help.root.setAttribute('aria-haspopup', 'dialog');
+  help.root.setAttribute('aria-controls', HELP_ID);
   setAttribute(sound.root, 'aria-pressed', 'true');
   setAttribute(cinematic.root, 'aria-pressed', 'false');
   const follow = element('a', {
