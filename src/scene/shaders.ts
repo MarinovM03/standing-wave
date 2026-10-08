@@ -61,6 +61,7 @@ export function fieldCommon(room: { length: number; width: number; height: numbe
     #define ROOM_SIZE vec3(${glsl(room.length)}, ${glsl(room.height)}, ${glsl(room.width)})
     #define FIELD_FLOOR ${glsl(floor)}
     #define SWING_DEPTH 0.35
+    #define BELIEF_POWER 1.4
     uniform vec3 uAxis;
     uniform float uOrder;
     uniform float uCoupling;
@@ -78,10 +79,11 @@ export function fieldCommon(room: { length: number; width: number; height: numbe
       float youdThink = 1.0 / (1.0 + distance(point, uSpeaker));
       return mix(actually, youdThink, uBelief);
     }
+    float fieldSwing(vec3 point) {
+      return 1.0 + SWING_DEPTH * sign(modeShape(point)) * uSwing * (1.0 - uBelief);
+    }
     float fieldBrightness(vec3 point) {
-      float level = fieldLevel(point);
-      float swing = 1.0 + SWING_DEPTH * sign(modeShape(point)) * uSwing * (1.0 - uBelief);
-      return pow(level, mix(2.0, 1.4, uBelief)) * swing;
+      return pow(fieldLevel(point), mix(2.0, BELIEF_POWER, uBelief)) * fieldSwing(point);
     }
     vec3 fieldColor() {
       return mix(uActually, uYoudThink, uBelief);
@@ -96,19 +98,40 @@ export const FIELD_SURFACE_VERTEX = `
     gl_Position = projectionMatrix * viewMatrix * world;
   }`;
 
-export const FIELD_FLOOR_FRAGMENT = `
+// Premultiplied: rgb is the light the field adds, alpha how much of the lit clay beneath it gives way.
+export function floorFragment(ramp: number, contour: { stepsPerNeper: number; pixels: number; crowd: readonly [number, number] }): string {
+  return `
+  #define RAMP_POWER ${glsl(ramp)}
+  #define CONTOUR_STEPS_PER_NEPER ${glsl(contour.stepsPerNeper)}
+  #define CONTOUR_PIXELS ${glsl(contour.pixels)}
+  #define CONTOUR_CROWD vec2(${glsl(contour.crowd[0])}, ${glsl(contour.crowd[1])})
   uniform float uIntensity;
-  uniform float uShade;
+  uniform vec2 uKeep;
+  uniform float uContour;
   uniform float uGrid;
   uniform vec3 uLine;
   varying vec3 vWorld;
   void main() {
     vec2 cell = abs(fract(vWorld.xz + 0.5) - 0.5) / fwidth(vWorld.xz);
     float grid = 1.0 - min(min(cell.x, cell.y), 1.0);
-    gl_FragColor = vec4(fieldColor() * fieldBrightness(vWorld) * uIntensity + uLine * grid * uGrid, uShade);
+    float level = fieldLevel(vWorld);
+    float steps = CONTOUR_STEPS_PER_NEPER * log(level);
+    float spacing = max(fwidth(steps), 1e-4);
+    // Lines fade where they crowd towards a node, and 0 dB gets none since only the antinode itself reaches it.
+    float contour = (1.0 - smoothstep(0.0, CONTOUR_PIXELS, abs(fract(steps + 0.5) - 0.5) / spacing))
+      * (1.0 - smoothstep(CONTOUR_CROWD.x, CONTOUR_CROWD.y, spacing))
+      * step(0.5, -steps);
+    // Level squared stays flat for a metre around an antinode; this ramp falls evenly with distance across a cosine mode.
+    float ramp = pow(1.0 - acos(min(level, 1.0)) / (0.5 * FIELD_PI), RAMP_POWER);
+    float brightness = mix(ramp, pow(level, BELIEF_POWER), uBelief) * fieldSwing(vWorld);
+    vec3 color = fieldColor();
+    vec3 light = color * (brightness * uIntensity + contour * uContour) + uLine * grid * uGrid;
+    float keep = mix(uKeep.x, uKeep.y, min(brightness, 1.0));
+    gl_FragColor = vec4(light, 1.0 - keep);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }`;
+}
 
 export const FIELD_WALL_FRAGMENT = `
   uniform float uIntensity;
@@ -146,7 +169,7 @@ export const FIELD_POINTS_FRAGMENT = `
     vec2 offset = gl_PointCoord - 0.5;
     float radius = dot(offset, offset) * 4.0;
     if (radius > 1.0) discard;
-    gl_FragColor = vec4(fieldColor() * (1.0 - smoothstep(0.35, 1.0, radius)) * vBrightness * uIntensity, 1.0);
+    gl_FragColor = vec4(fieldColor() * exp(-4.0 * radius) * vBrightness * uIntensity, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }`;

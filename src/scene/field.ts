@@ -6,12 +6,12 @@ import { FIELD } from './palette';
 import { BLOOM_LAYER } from './post';
 import type { Tier } from './renderer';
 import {
-  FIELD_FLOOR_FRAGMENT,
   FIELD_POINTS_FRAGMENT,
   FIELD_POINTS_VERTEX,
   FIELD_SURFACE_VERTEX,
   FIELD_WALL_FRAGMENT,
   fieldCommon,
+  floorFragment,
 } from './shaders';
 
 export type FieldState = {
@@ -27,10 +27,12 @@ const FADE_SECONDS = 0.2;
 const YOUD_THINK_DIM = 0.7;
 const SWING_HZ = 1;
 const SWING_EASE_SECONDS = 0.3;
-const FLOOR = { intensity: 1.5, shade: 0.75, grid: 0.035, lift: 0.004 };
-const WALL = { intensity: 0.14, inset: 0.004 };
-const POINTS = { intensity: 0.26, size: 0.034, maxSize: 3 };
-const PARTICLES = { full: 8000, phone: 3000, plain: 1500 };
+// keep: the share of lit clay left at a node and at an antinode, so the field reads as light on the floor.
+const FLOOR = { intensity: 0.8, ramp: 1.6, keep: [0.06, 0.4], contour: 0.6, grid: 0.035, lift: 0.004 } as const;
+const CONTOUR = { db: 6, pixels: 1, crowd: [0.25, 0.5] } as const;
+const WALL = { intensity: 0.1, inset: 0.004 };
+const POINTS = { intensity: 0.18, size: 0.08, maxSize: 7 };
+const PARTICLES = { full: 1200, phone: 600, plain: 400 };
 // Without the composer each fragment is encoded to sRGB before it blends, which lifts faint glows several times over.
 const PLAIN_DIM = { floor: 0.65, points: 0.3 };
 const LINE_OPACITY = { node: 0.6, half: 0.7, distance: 0.55 };
@@ -73,9 +75,11 @@ export class Field {
       premultipliedAlpha,
     });
 
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.length, ROOM.width), surface(FIELD_FLOOR_FRAGMENT, {
+    const floorShader = floorFragment(FLOOR.ramp, { stepsPerNeper: 20 / Math.LN10 / CONTOUR.db, pixels: CONTOUR.pixels, crowd: CONTOUR.crowd });
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.length, ROOM.width), surface(floorShader, {
       uIntensity: { value: FLOOR.intensity * (plain ? PLAIN_DIM.floor : 1) },
-      uShade: { value: FLOOR.shade },
+      uKeep: { value: new THREE.Vector2(...FLOOR.keep) },
+      uContour: { value: FLOOR.contour * (plain ? PLAIN_DIM.floor : 1) },
       uGrid: { value: FLOOR.grid },
       uLine: { value: new THREE.Color(FIELD.line) },
     }, THREE.NormalBlending, true));
