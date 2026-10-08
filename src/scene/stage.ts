@@ -58,6 +58,7 @@ export class Stage {
   private state: StageState;
   private world: Record<CalloutId, THREE.Vector3>;
   private frame = 0;
+  private drawn = 0;
   private width = 1;
   private height = 1;
   private disposed = false;
@@ -250,8 +251,11 @@ export class Stage {
     const footprint = this.speaker.footprint();
     this.contact.setSpeaker(footprint.x, footprint.z);
     this.rig.tick(delta, this.micTip);
+    this.studio.tick(delta);
     this.post.setDepthOfField(this.rig.mode === 'cinematic', this.camera.position.distanceTo(this.micTip));
     this.post.render(delta);
     this.events.onFrame?.(projectAnchors(this.world, this.plate.corners, this.camera, this.width, this.height));
+    // The first two frames reach the screen in one update, so reflections start from the third.
+    if (++this.drawn === 3) this.studio.addReflections(this.reducedMotion);
   };
 }
