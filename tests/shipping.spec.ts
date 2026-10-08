@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loadEnv } from 'vite';
 import { HOOK, PAGE, TITLE_BLOCK } from '../src/ui/copy';
 
-const controls = '.dock button, .dock input, .actions button, .actions a';
+const controls = '.dock button:not(#sheet-handle), .dock input, .actions button, .actions a';
 
 async function expectExposed(control: Locator): Promise<void> {
   await control.scrollIntoViewIfNeeded();

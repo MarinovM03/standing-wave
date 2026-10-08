@@ -227,14 +227,14 @@ test('the interface hides, restores and resets from the keyboard', async ({ page
   await expect(cinematic).toHaveAttribute('aria-pressed', 'false');
 });
 
-test('Help, H and ? open the explainer, and typing in the number field fires no keys', async ({ page }) => {
+test('Help, H and ? open the help drawer, and typing in the number field fires no keys', async ({ page }) => {
   await page.locator('#help').click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).not.toBeVisible();
   for (const key of ['h', '?']) {
     await page.keyboard.press(key);
-    await expect(page.getByRole('dialog'), `${key} opens the explainer`).toBeVisible();
+    await expect(page.getByRole('dialog'), `${key} opens the help drawer`).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).not.toBeVisible();
   }
