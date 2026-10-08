@@ -10,10 +10,10 @@ function strings(value: unknown): string[] {
 
 const UNIT = /^\s?(?:Hz|kHz|m\/s|ms|m|dB|s|%)(?!\w)/;
 
-// Catalogue numbers like "No. 02" name a lab; every other number is a quantity.
+// "No. 02" names a lab, "×2" is a factor and "@marinovm10" a handle; every other number is a quantity.
 function unitless(text: string): string[] {
   return Array.from(text.matchAll(/\d+(?:\.\d+)?/g))
-    .filter(match => !text.slice(0, match.index).endsWith('No. ') && !UNIT.test(text.slice(match.index + match[0].length)))
+    .filter(match => !/(?:No\. |×|[a-z])$/i.test(text.slice(0, match.index)) && !UNIT.test(text.slice(match.index + match[0].length)))
     .map(match => match[0]);
 }
 
@@ -30,6 +30,7 @@ function latinRanges(): [number, number][] {
 }
 
 const all = strings(copy);
+const prose = strings({ ...copy, KEYS: undefined });
 
 describe('copy', () => {
   it('has no em dashes', () => {
@@ -37,8 +38,8 @@ describe('copy', () => {
   });
 
   it('gives every number a unit', () => {
-    expect(unitless('A 6 metre room, 343 m/s, No. 02')).toEqual(['6']);
-    for (const text of all) expect(unitless(text), text).toEqual([]);
+    expect(unitless('A 6 metre room, 343 m/s, No. 02, Length ×2, @marinovm10')).toEqual(['6']);
+    for (const text of prose) expect(unitless(text), text).toEqual([]);
   });
 
   it('follows the hook formula with an Actually line under 12 words', () => {

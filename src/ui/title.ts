@@ -29,7 +29,7 @@ export function readoutValues(readings: TitleReadings) {
     frequency: { value: settled(readings.frequency, DECIMALS.frequency), unit: READOUTS.frequency.unit },
     wavelength: { value: settled(readings.wavelength, DECIMALS.wavelength), unit: READOUTS.wavelength.unit },
     mode: { value: belief ? READOUTS.mode.none : `(${readings.indices.join(', ')})` },
-    level: { value: settled(readings.db, DECIMALS.level), unit: READOUTS.level.unit[readings.view] },
+    level: { value: settled(readings.db, DECIMALS.level), unit: READOUTS.level.unit, label: READOUTS.level.label[readings.view] },
   };
 }
 
@@ -40,8 +40,9 @@ function readout(id: keyof typeof READOUTS) {
   const unit = element('span', { class: 'readout__unit' });
   const value = element('dd', { class: 'readout__value', id: `readout-${id}` }, number);
   if (id !== 'mode') value.append(' ', unit);
-  const group = element('div', { class: 'readout' }, element('dt', { class: 'readout__label' }, READOUTS[id].label), value);
-  return { group, value, number, unit };
+  const label = element('dt', { class: 'readout__label' }, id === 'level' ? READOUTS.level.label.physics : READOUTS[id].label);
+  const group = element('div', { class: 'readout' }, label, value);
+  return { group, value, number, unit, label };
 }
 
 function setText(target: HTMLElement, text: string) {
@@ -100,6 +101,7 @@ export function adoptTitleBlock() {
       setNumber(id, values[id].value);
       setText(fields[id].unit, values[id].unit);
     }
+    setText(fields.level.label, values.level.label);
     fields.mode.value.dataset.value = values.mode.value;
     setText(fields.mode.number, values.mode.value);
   }

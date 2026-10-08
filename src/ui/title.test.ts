@@ -23,14 +23,14 @@ describe('title readouts', () => {
       frequency: { value: '28.6', unit: 'Hz' },
       wavelength: { value: '12.00', unit: 'm' },
       mode: { value: '(1, 0, 0)' },
-      level: { value: expect.stringMatching(/^-?\d+\.\d$/), unit: 'dB re antinode' },
+      level: { value: expect.stringMatching(/^-?\d+\.\d$/), unit: 'dB', label: 'Level re antinode' },
     });
   });
 
   it('read no mode and level re speaker in You\'d think', () => {
     const values = readoutValues(readings(343 / 12, 'belief'));
     expect(values.mode).toEqual({ value: 'none' });
-    expect(values.level.unit).toBe('dB re speaker');
+    expect(values.level).toMatchObject({ unit: 'dB', label: 'Level re speaker' });
     expect(Number(values.level.value)).toBeLessThan(-10);
   });
 });
