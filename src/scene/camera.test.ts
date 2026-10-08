@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ROOM } from '../model/room';
-import { FOV, NO_INSETS, frameView, homeDirection, type Framing, type Insets } from './camera';
+import type { ScreenRect } from './anchors';
+import { FOV, NO_INSETS, frameClear, frameView, homeDirection, type Framing, type Insets } from './camera';
 
 const room = [0, 1].flatMap((x) => [0, 1].flatMap((y) => [0, 1].map((z) =>
   new THREE.Vector3(x * ROOM.length, y * ROOM.height, z * ROOM.width))));
@@ -76,5 +77,43 @@ describe('framing from insets', () => {
     const docked = screenBox(frameView(390, 844, { top: 0, right: 0, bottom: 400, left: 0 }, room), 390, 844);
     expect(docked.bottom).toBeLessThanOrEqual(444);
     expect(docked.y).toBeLessThan(open.y);
+  });
+});
+
+const overlaps = (a: ScreenRect, b: ScreenRect) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+const size = (framing: Framing) => framing.position.distanceTo(framing.target);
+
+describe('framing around interface rects', () => {
+  it('matches the plain framing when nothing covers the canvas', () => {
+    const clear = frameClear(1440, 900, [], room);
+    const plain = frameView(1440, 900, NO_INSETS, room);
+    expect(clear.position.distanceTo(plain.position)).toBeCloseTo(0, 6);
+  });
+
+  it.each<[number, number, ScreenRect[]]>([
+    [1440, 900, [{ left: 38, top: 32, right: 517, bottom: 290 }, { left: 340, top: 750, right: 1100, bottom: 884 }, { left: 1100, top: 16, right: 1424, bottom: 56 }]],
+    [1280, 720, [{ left: 38, top: 32, right: 517, bottom: 290 }, { left: 260, top: 570, right: 1020, bottom: 704 }]],
+    [390, 844, [{ left: 16, top: 16, right: 300, bottom: 140 }, { left: 0, top: 500, right: 390, bottom: 844 }, { left: 330, top: 16, right: 374, bottom: 210 }]],
+  ])('keeps the room clear of every rect at %ix%i', (width, height, rects) => {
+    const box = screenBox(frameClear(width, height, rects, room), width, height);
+    for (const rect of rects) expect(overlaps(box, rect)).toBe(false);
+    expect(box.left).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(width);
+    expect(box.top).toBeGreaterThanOrEqual(0);
+    expect(box.bottom).toBeLessThanOrEqual(height);
+  });
+
+  it('picks the side of a corner block that shows the room largest', () => {
+    const title = { left: 38, top: 32, right: 517, bottom: 290 };
+    const dock = { left: 340, top: 750, right: 1100, bottom: 884 };
+    const chosen = size(frameClear(1440, 900, [title, dock], room));
+    const below = size(frameView(1440, 900, { top: 290, right: 0, bottom: 150, left: 0 }, room));
+    const beside = size(frameView(1440, 900, { top: 0, right: 0, bottom: 150, left: 517 }, room));
+    expect(chosen).toBeCloseTo(Math.min(below, beside), 6);
+  });
+
+  it('lets a rect overlap when avoiding it would leave too little room', () => {
+    const framing = frameClear(800, 600, [{ left: 0, top: 0, right: 800, bottom: 500 }], room);
+    expect(framing.offset).toEqual({ x: 0, y: 0 });
   });
 });

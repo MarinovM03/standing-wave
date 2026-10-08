@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { coupling, getNearestMode, getResponse, type ViewMode } from '../model/acoustics';
 import { ROOM, clampMic, clampSpeaker, type Position } from '../model/room';
-import { anchorWorldPoints, projectAnchors, projectPoint, type Anchors, type CalloutId } from './anchors';
-import { CameraRig, FOV, type Insets } from './camera';
+import { anchorWorldPoints, projectAnchors, projectPoint, type Anchors, type CalloutId, type ScreenRect } from './anchors';
+import { CameraRig, FOV } from './camera';
 import { addContactShadows, type ContactShadows } from './contact';
 import { addStudio, type Studio } from './environment';
 import { Field } from './field';
@@ -73,7 +73,7 @@ export class Stage {
     canvas.className = 'room-canvas';
     canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;';
     canvas.setAttribute('aria-label', 'Interactive acoustic room');
-    canvas.setAttribute('aria-describedby', 'room-instructions pressure-summary');
+    canvas.setAttribute('aria-describedby', 'room-instructions room-view pressure-summary');
     canvas.setAttribute('role', 'application');
     canvas.tabIndex = 0;
     container.append(canvas);
@@ -146,6 +146,7 @@ export class Stage {
       mic: next.mic,
     });
     this.field.setSwing(next.swing);
+    this.renderer.domElement.dataset.swing = String(next.swing);
     this.speaker.setPosition(next.speaker);
     this.mic.setPosition(next.mic);
     this.mic.setLevel(next.level);
@@ -164,8 +165,9 @@ export class Stage {
     this.rig.reset();
   }
 
-  setInsets(insets: Insets): void {
-    this.rig.setInsets(insets);
+  // Rects in the container's pixels that the home framing keeps the room and the plate clear of.
+  setInsets(rects: readonly ScreenRect[]): void {
+    this.rig.setObstacles(rects);
   }
 
   dispose(): void {

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import type { ScreenRect } from './anchors';
 
 export type Insets = { top: number; right: number; bottom: number; left: number };
 export type Framing = { target: THREE.Vector3; position: THREE.Vector3; offset: { x: number; y: number } };
@@ -11,6 +12,7 @@ export const FOV = 39;
 const PORTRAIT = { azimuth: 0.36, elevation: 0.62, aspect: 0.6 };
 const LANDSCAPE = { azimuth: 0.5, elevation: 0.42, aspect: 1.4 };
 const MARGIN = 0.05;
+const MIN_FREE = 0.3;
 const INTRO = { seconds: 2, azimuth: -0.55, elevation: 0.16, distance: 1.35 };
 const CINEMATIC = { radius: 7, elevation: 0.3, speed: 0.07, follow: 3, blend: 1.4 };
 const MOVE_SPEED = 2.4;
@@ -96,6 +98,44 @@ export function frameView(width: number, height: number, insets: Insets, points:
   return { target, position: camera.position.clone(), offset };
 }
 
+function avoiding(rect: ScreenRect, width: number, height: number): Insets[] {
+  const clampX = (x: number) => Math.min(width, Math.max(0, x));
+  const clampY = (y: number) => Math.min(height, Math.max(0, y));
+  return [
+    { ...NO_INSETS, top: clampY(rect.bottom) },
+    { ...NO_INSETS, bottom: height - clampY(rect.top) },
+    { ...NO_INSETS, left: clampX(rect.right) },
+    { ...NO_INSETS, right: width - clampX(rect.left) },
+  ];
+}
+
+// The room goes above, below, left or right of each rect; the framing that shows it largest wins.
+export function frameClear(width: number, height: number, rects: readonly ScreenRect[], points: readonly THREE.Vector3[], fov = FOV): Framing {
+  const roomy = (insets: Insets) => width - insets.left - insets.right >= width * MIN_FREE && height - insets.top - insets.bottom >= height * MIN_FREE;
+  let candidates: Insets[] = [NO_INSETS];
+  for (const rect of rects) {
+    if (rect.right - rect.left < 2 || rect.bottom - rect.top < 2 || rect.right <= 0 || rect.bottom <= 0 || rect.left >= width || rect.top >= height) continue;
+    const next = candidates.flatMap((insets) => avoiding(rect, width, height).map((side) => ({
+      top: Math.max(insets.top, side.top),
+      right: Math.max(insets.right, side.right),
+      bottom: Math.max(insets.bottom, side.bottom),
+      left: Math.max(insets.left, side.left),
+    }))).filter(roomy);
+    if (next.length) candidates = next;
+  }
+  let best: Framing | undefined;
+  let bestDistance = Infinity;
+  for (const insets of candidates) {
+    const framing = frameView(width, height, insets, points, fov);
+    const distance = framing.position.distanceTo(framing.target);
+    if (distance < bestDistance) {
+      best = framing;
+      bestDistance = distance;
+    }
+  }
+  return best!;
+}
+
 type RigEvents = {
   onUserCamera(): void;
 };
@@ -115,7 +155,7 @@ export class CameraRig {
   private readonly forward = new THREE.Vector3();
   private readonly right = new THREE.Vector3();
   private readonly orbitGoal = new THREE.Vector3();
-  private insets: Insets = NO_INSETS;
+  private obstacles: readonly ScreenRect[] = [];
   private width = 1;
   private height = 1;
   private home: Framing;
@@ -166,8 +206,8 @@ export class CameraRig {
     } else if (this.current === 'home') this.snapHome();
   }
 
-  setInsets(insets: Insets): void {
-    this.insets = insets;
+  setObstacles(rects: readonly ScreenRect[]): void {
+    this.obstacles = rects;
     this.refit();
     if (this.current === 'home') this.snapHome();
   }
@@ -251,7 +291,7 @@ export class CameraRig {
   }
 
   private refit(): void {
-    this.home = frameView(this.width, this.height, this.insets, this.fitPoints);
+    this.home = frameClear(this.width, this.height, this.obstacles, this.fitPoints);
     this.camera.aspect = this.width / this.height;
     this.camera.setViewOffset(this.width, this.height, this.home.offset.x, this.home.offset.y, this.width, this.height);
     this.camera.updateProjectionMatrix();
