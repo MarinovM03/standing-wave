@@ -11,3 +11,12 @@ export function element<K extends keyof HTMLElementTagNameMap>(tag: K, attribute
   node.append(...children);
   return node;
 }
+
+// A pointer press leaves no button focused, so Space plays the note afterwards instead of pressing a button again.
+export function clickWithoutFocus(container: HTMLElement, signal: AbortSignal): void {
+  container.addEventListener('mousedown', event => {
+    if (!(event.target instanceof Element) || !event.target.closest('button')) return;
+    event.preventDefault();
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  }, { signal });
+}

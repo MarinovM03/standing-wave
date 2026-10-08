@@ -1,0 +1,107 @@
+.actions {
+  position: absolute;
+  top: max(var(--edge), env(safe-area-inset-top));
+  right: max(var(--edge), env(safe-area-inset-right));
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: opacity var(--fast) var(--ease-out), visibility 0s;
+}
+
+.ui-hidden .actions {
+  opacity: 0;
+  visibility: hidden;
+  transition-delay: 0s, var(--fast);
+}
+
+.actions__buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.action,
+.follow {
+  height: max(40px, var(--control));
+  color: var(--paper);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  transition: background var(--fast) var(--ease-out), border-color var(--fast) var(--ease-out), color var(--fast) var(--ease-out);
+}
+
+.action:hover,
+.follow:hover {
+  background: var(--raised);
+}
+
+.action {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: max(40px, var(--control));
+  padding: 0;
+}
+
+.action__icon,
+.action__icon .icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+
+#cinematic[aria-pressed='true'] {
+  color: var(--signal);
+  border-color: var(--signal);
+}
+
+.action__tip {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font: 500 11px/1 var(--font-mono);
+  white-space: nowrap;
+  color: var(--paper);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--fast) var(--ease-out), visibility 0s linear var(--fast);
+}
+
+.action:is(:hover, :focus-visible) .action__tip {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.follow {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  font: 500 13px/1 var(--font-ui);
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+@media (max-width: 900px) {
+  .actions {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
+}
+
+@media (hover: none) {
+  .action__tip {
+    display: none;
+  }
+}

@@ -16,6 +16,7 @@ const SPEAKER_MARGIN = 0.25;
 export const SPEAKER: Position = { x: SPEAKER_MARGIN, y: 0.35, z: SPEAKER_MARGIN };
 export const SPEAKER_MIDDLE: Position = { x: ROOM.length / 2, y: SPEAKER.y, z: ROOM.width / 2 };
 export const MIC_CORNER: Position = { x: ROOM.length - MIC_MARGIN, y: MIC_MARGIN, z: ROOM.width - MIC_MARGIN };
+export const MIC_HEIGHT = { min: MIC_MARGIN, max: ROOM.height - MIC_MARGIN } as const;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
