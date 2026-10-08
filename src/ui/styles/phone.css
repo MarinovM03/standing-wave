@@ -1,12 +1,17 @@
+@media (max-width: 640px), (max-height: 559px) and (pointer: coarse) {
+  .actions .follow {
+    display: none;
+  }
+}
+
 @media (max-width: 640px) {
   .actions__buttons {
     flex-direction: column;
   }
+}
 
-  .follow {
-    display: none;
-  }
-
+/* Keep in step with SHEET_MEDIA in sheet.ts. */
+@media (max-width: 640px) and (orientation: portrait), (max-width: 640px) and (min-height: 560px) {
   .dock-area {
     right: 0;
     bottom: 0;
@@ -16,9 +21,39 @@
 
   .dock {
     gap: 8px;
-    padding: 10px max(12px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    padding: 0 max(12px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
     border-bottom: 0;
     border-radius: var(--glass-radius) var(--glass-radius) 0 0;
+  }
+
+  .dock__handle {
+    display: grid;
+    place-items: center;
+    height: 44px;
+    margin: 0 calc(-1 * max(12px, env(safe-area-inset-right))) -8px calc(-1 * max(12px, env(safe-area-inset-left)));
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: var(--glass-radius) var(--glass-radius) 0 0;
+    cursor: grab;
+    touch-action: none;
+  }
+
+  .dock__grip {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--paper) 35%, transparent);
+    transition: background var(--fast) var(--ease-out);
+  }
+
+  .dock__handle:hover .dock__grip,
+  .dock[data-sheet-drag] .dock__grip {
+    background: var(--paper);
+  }
+
+  .dock__handle:focus-visible {
+    outline-offset: -4px;
   }
 
   .dock__row {
@@ -32,27 +67,134 @@
   }
 
   .dock__group--view,
-  .dock__group--modes,
-  .dock__group--frequency,
+  .dock__group--play {
+    flex: 1 1 auto;
+  }
+
+  .dock__play {
+    width: 100%;
+  }
+
+  .dock__group--frequency {
+    flex: 1 1 100%;
+    order: 1;
+  }
+
+  .dock__row--scene {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .dock__more {
+    display: block;
+    height: var(--sheet-more, 0px);
+    overflow: hidden;
+    visibility: hidden;
+    transition: height var(--fast) var(--ease-out), visibility 0s linear var(--fast);
+  }
+
+  .dock[data-sheet='full'] .dock__more,
+  .dock[data-sheet-drag] .dock__more {
+    visibility: visible;
+    transition-delay: 0s;
+  }
+
+  .dock[data-sheet-drag] .dock__more {
+    transition: none;
+  }
+
+  .dock__more-content {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 8px 10px;
+    padding-top: 8px;
+  }
+
   .dock__group--height {
     flex: 1 1 100%;
   }
 
-  .dock__group--view {
-    flex-basis: auto;
-  }
-
-  .dock__group--frequency {
-    order: 1;
-  }
-
-  .dock__group--mic {
+  .dock__group--mic,
+  .dock__group--speaker {
     flex: 1 1 auto;
   }
 
-  .segmented > .dock__button,
-  .dock__group--mic .dock__button {
+  :is(.segmented, .dock__pair) > .dock__button {
     flex: 1 1 0;
     padding: 0 8px;
+  }
+}
+
+@media (max-height: 559px) and (orientation: landscape) {
+  .actions,
+  .actions__buttons {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .actions {
+    gap: 12px;
+  }
+
+  .dock-area {
+    top: calc(var(--inset-top) + var(--action) + 10px);
+    right: var(--inset-right);
+    bottom: var(--inset-bottom);
+    left: auto;
+    width: min(340px, 44vw);
+    max-width: none;
+    margin: 0;
+    align-items: stretch;
+  }
+
+  .dock {
+    min-height: 0;
+    max-height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--raised) transparent;
+  }
+
+  .dock__row {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+  }
+
+  .dock__group {
+    flex: none;
+  }
+
+  :is(.segmented, .dock__pair) > .dock__button {
+    flex: 1 1 0;
+  }
+
+  .dock__group--modes .segmented {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .dock__group--modes .segmented > .dock__button {
+    margin-left: 0;
+    border-radius: 8px;
+  }
+
+  .toast {
+    position: absolute;
+    right: calc(100% + 12px);
+    bottom: 0;
+    width: max-content;
+    max-width: min(320px, 40vw);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock__more {
+    transition: none;
   }
 }

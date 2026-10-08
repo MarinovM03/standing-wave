@@ -118,11 +118,11 @@ body > .title-block {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 559px) and (orientation: landscape) {
   .stage > .title-block {
-    top: max(var(--edge), env(safe-area-inset-top));
-    left: max(var(--edge), env(safe-area-inset-left));
-    max-width: calc(100% - 2 * var(--edge) - 44px - 12px);
+    top: var(--inset-top);
+    left: var(--inset-left);
+    max-width: calc(100% - var(--inset-left) - var(--inset-right) - var(--action) - 12px);
   }
 
   .title-block__kicker {
@@ -149,14 +149,18 @@ body > .title-block {
   }
 }
 
-@media (max-height: 600px) and (orientation: landscape) {
+@media (max-height: 559px) and (orientation: landscape) {
   .stage > .title-block {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
+    max-width: calc(100% - var(--inset-left) - var(--inset-right) - min(340px, 44vw) - 24px);
+  }
+}
+
+@media (max-height: 559px) and (orientation: landscape) and (pointer: fine) {
+  .title-block__title {
+    font-size: 34px;
+  }
+
+  .title-block__wrong {
+    font-size: 19px;
   }
 }

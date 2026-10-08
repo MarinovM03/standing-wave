@@ -1,7 +1,7 @@
 .actions {
   position: absolute;
-  top: max(var(--edge), env(safe-area-inset-top));
-  right: max(var(--edge), env(safe-area-inset-right));
+  top: var(--inset-top);
+  right: var(--inset-right);
   z-index: 3;
   display: flex;
   align-items: center;
@@ -22,7 +22,7 @@
 
 .action,
 .follow {
-  height: max(40px, var(--control));
+  height: var(--action);
   color: var(--paper);
   background: var(--glass);
   -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -41,7 +41,7 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: max(40px, var(--control));
+  width: var(--action);
   padding: 0;
 }
 

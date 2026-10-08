@@ -1,6 +1,11 @@
 :root {
   --control: 36px;
   --edge: 20px;
+  --action: max(40px, var(--control));
+  --inset-top: max(var(--edge), calc(env(safe-area-inset-top) + 8px));
+  --inset-right: max(var(--edge), calc(env(safe-area-inset-right) + 8px));
+  --inset-bottom: max(var(--edge), calc(env(safe-area-inset-bottom) + 8px));
+  --inset-left: max(var(--edge), calc(env(safe-area-inset-left) + 8px));
   --track: color-mix(in srgb, var(--paper) 20%, transparent);
   color-scheme: dark;
 }
@@ -93,13 +98,13 @@ button {
 
 .restore {
   position: fixed;
-  top: max(var(--edge), env(safe-area-inset-top));
-  right: max(var(--edge), env(safe-area-inset-right));
+  top: var(--inset-top);
+  right: var(--inset-right);
   z-index: 5;
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  min-height: max(40px, var(--control));
+  min-height: var(--action);
   padding: 0 14px;
   font: 500 13px/1 var(--font-ui);
 }

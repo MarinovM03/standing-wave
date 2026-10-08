@@ -181,6 +181,8 @@ export function createCallouts(container: HTMLElement) {
       .map((id) => ({ id, x: anchors.points[id].x, y: anchors.points[id].y, width: width(id), height }));
     const layout = layoutCallouts(items, anchors, anchors.plate ? [anchors.plate, ...obstacles] : obstacles, previous);
     previous = new Map([...layout].map(([id, { placement }]) => [id, placement]));
+    const plate = anchors.plate ? [anchors.plate.left, anchors.plate.top, anchors.plate.right, anchors.plate.bottom].map(Math.round).join(' ') : '';
+    if (layer.dataset.plate !== plate) layer.dataset.plate = plate;
 
     for (const [id, callout] of callouts) {
       const point = anchors.points[id];

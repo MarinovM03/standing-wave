@@ -29,6 +29,15 @@
   transition-delay: 0s, var(--fast);
 }
 
+.dock__handle {
+  display: none;
+}
+
+.dock__more,
+.dock__more-content {
+  display: contents;
+}
+
 .dock__row {
   display: flex;
   flex-wrap: wrap;
@@ -83,10 +92,6 @@
   transition: background var(--fast) var(--ease-out), border-color var(--fast) var(--ease-out), color var(--fast) var(--ease-out);
 }
 
-.dock__button:hover {
-  background: var(--raised);
-}
-
 .segmented,
 .dock__pair {
   display: flex;
@@ -116,10 +121,6 @@
   color: var(--muted);
 }
 
-.segmented > .dock__button[aria-pressed='false']:hover {
-  color: var(--paper);
-}
-
 .segmented > .dock__button[aria-pressed='true'] {
   position: relative;
   z-index: 1;
@@ -142,10 +143,6 @@
   color: var(--ink);
   background: var(--paper);
   border-color: var(--paper);
-}
-
-.dock__play:hover {
-  background: color-mix(in srgb, var(--paper) 86%, var(--ink));
 }
 
 .dock__play .key {
@@ -269,6 +266,21 @@
   font: 500 13px/1 var(--font-mono);
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+/* Touch screens keep :hover after a tap, which would read as a pressed segment. */
+@media (hover: hover) {
+  .dock__button:hover {
+    background: var(--raised);
+  }
+
+  .segmented > .dock__button[aria-pressed='false']:hover {
+    color: var(--paper);
+  }
+
+  .dock__play[aria-pressed='false']:hover {
+    background: color-mix(in srgb, var(--paper) 86%, var(--ink));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

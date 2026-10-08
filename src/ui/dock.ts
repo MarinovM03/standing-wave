@@ -4,6 +4,7 @@ import { MIC_HEIGHT } from '../model/room';
 import { DOCK, KEYS } from './copy';
 import { clickWithoutFocus, element } from './dom';
 import { arrowKeys, icon } from './icons';
+import { createSheet, type SheetState } from './sheet';
 
 export type DockPreset = 1 | 2 | 3 | 4;
 
@@ -102,16 +103,35 @@ export function createDock(events: DockEvents) {
   const speakerGroup = group('speaker', speakerLabel, null,
     element('div', { class: 'dock__pair', role: 'group', 'aria-labelledby': 'dock-speaker-label' }, speakerMiddle));
 
+  const handle = element('button', {
+    id: 'sheet-handle', type: 'button', class: 'dock__handle', 'aria-expanded': 'false', 'aria-controls': 'dock-more', 'aria-label': DOCK.sheet,
+  }, element('span', { class: 'dock__grip' }));
+  const moreContent = element('div', { class: 'dock__more-content' }, heightGroup, micGroup, speakerGroup);
+  const more = element('div', { id: 'dock-more', class: 'dock__more' }, moreContent);
+
   const root = element('section', { class: 'dock glass', 'aria-label': DOCK.label },
+    handle,
     element('div', { class: 'dock__row dock__row--main' }, viewGroup, frequencyGroup, playGroup),
-    element('div', { class: 'dock__row dock__row--scene' }, modesGroup, heightGroup, micGroup, speakerGroup));
+    element('div', { class: 'dock__row dock__row--scene' }, modesGroup, more));
+  const sheet = createSheet(root, handle, moreContent);
 
   let frequency = FREQUENCY_MIN;
   const showFrequency = () => {
     frequencyNumber.value = frequency.toFixed(1);
   };
 
+  let scrubbing = false;
   clickWithoutFocus(root, signal);
+  for (const range of [frequencyRange, heightRange]) {
+    range.addEventListener('pointerdown', () => {
+      scrubbing = true;
+    }, { signal });
+  }
+  for (const type of ['pointerup', 'pointercancel'] as const) {
+    window.addEventListener(type, () => {
+      scrubbing = false;
+    }, { signal });
+  }
   wrong.addEventListener('click', () => events.view('belief'), { signal });
   right.addEventListener('click', () => events.view('physics'), { signal });
   frequencyRange.addEventListener('input', () => events.frequency(Number(frequencyRange.value)), { signal });
@@ -156,8 +176,15 @@ export function createDock(events: DockEvents) {
 
   function dispose() {
     abort.abort();
+    sheet.dispose();
     root.remove();
   }
 
-  return { element: root, render, dispose };
+  return {
+    element: root,
+    render,
+    setSheet: (state: SheetState) => sheet.set(state),
+    isScrubbing: () => scrubbing,
+    dispose,
+  };
 }
