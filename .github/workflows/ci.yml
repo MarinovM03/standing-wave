@@ -25,7 +25,17 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npm test
-      - run: npx playwright install --with-deps chromium
+      # A stalled Ubuntu mirror once hung apt here until the job timed out; time it out and retry instead.
+      - name: Install Chromium and its system libraries
+        timeout-minutes: 8
+        run: |
+          printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-network
+          for attempt in 1 2 3; do
+            npx playwright install --with-deps chromium && exit 0
+            echo "Playwright install failed on attempt $attempt"
+            sleep 15
+          done
+          exit 1
       - run: npm run test:e2e
       - name: Upload browser failure artifacts
         if: failure()
