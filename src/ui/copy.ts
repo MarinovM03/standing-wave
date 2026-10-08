@@ -48,6 +48,7 @@ export const DOCK = {
   micHeight: { label: 'Mic height', unit: 'm' },
   mic: { label: 'Mic', node: 'Node', nodeAction: 'Mic to a node', corner: 'Corner', cornerAction: 'Mic to the corner' },
   speaker: { label: 'Speaker', middle: 'Middle', middleAction: 'Speaker to the middle' },
+  sheet: 'More controls',
 } as const;
 
 export const ACTIONS = {
@@ -78,4 +79,81 @@ export const KEYS = {
   cinematic: 'C',
   help: 'H',
   hide: '/',
+} as const;
+
+export const HELP = {
+  title: 'Help',
+  close: 'Close help',
+  sections: {
+    idea: 'The idea',
+    steps: 'Try this',
+    real: "What's real",
+    simplified: "What's simplified",
+    sources: 'Sources',
+    keys: 'Keys',
+  },
+  idea: [
+    'A bass note is a wave several metres long. In a closed room it bounces between opposite walls.',
+    'At certain notes the reflections line up with the sound leaving the speaker, and the room holds a standing wave. Pressure piles up at the walls and cancels on quiet planes between them.',
+    'Stand on one of those planes and the bass almost vanishes, though the speaker plays just as loud.',
+  ],
+  steps: [
+    'Pick Length. At 28.6 Hz the wave is 12 m long, so half of it spans the 6 m room.',
+    'Drag the mic toward the middle of the room, or press Node. The level drops into a node, a quiet plane.',
+    'Now drag it to the wall opposite the speaker. The level climbs back to an antinode, though the speaker is farther away.',
+    "Switch to You'd think. There the level only falls with distance. Switch back to Actually.",
+    'Break it: drag the speaker to the middle of the room, or press Middle. It now sits on the node, so the length mode goes silent everywhere. Length ×2 still plays.',
+  ],
+  real: [
+    'The room is 6.0 m long, 4.0 m wide and 2.8 m high, and sound travels at 343 m/s.',
+    'Each mode fits a whole number of half waves between two opposite walls. The first length mode is 343 m/s over twice the 6.0 m length: 28.6 Hz.',
+    'Pressure peaks at the walls, the antinodes, and cancels on flat planes between them, the nodes. Neighbouring lobes swing in opposite phase while the nodes stay put.',
+    'A speaker drives a mode as strongly as that mode is where the speaker stands. The mic hears the same factor where it stands, so swapping the two gives the same level.',
+    'The tone plays at the chosen frequency, and its level follows the level readout.',
+  ],
+  simplified: [
+    'One mode at a time: the nearest axial mode. A real room plays many modes at once, including ones that run across corners.',
+    'The room is an empty rigid box, with no furniture, doors, absorption, echoes or reverberation.',
+    'The cutaway is only for viewing. The model is a closed rigid box.',
+    'The floor brightness is a display ramp that fades evenly from antinode to node. The contours carry the true level, one line every 6 dB.',
+    'Off resonance, the level falls on a smooth illustrative curve, not measured absorption.',
+    'Levels are relative to an ideal antinode, not calibrated sound pressure. A 2% floor keeps nodes from reading as perfect silence, and readings stop at −40 dB.',
+    'The speaker is a point at its woofer centre, with no directivity.',
+    "You'd think is a plain distance falloff from the speaker, not a full free-field model.",
+    'The swing is slowed to 1 Hz so you can see it. The tone plays at the real frequency.',
+  ],
+  sources: [
+    { name: 'Daniel A. Russell, Penn State: Driving room modes, source location', href: 'https://www.acs.psu.edu/drussell/Demos/roommodes/driving.html' },
+    { name: 'Purdue ME 513: Modes in a rectangular room', href: 'https://engineering.purdue.edu/ME513/animations/room.htm' },
+  ],
+  keys: [
+    { keys: [KEYS.play], action: 'Play or stop the note' },
+    { keys: KEYS.presets, action: 'Length, width, height and second length modes' },
+    { keys: [KEYS.view], action: "Switch between You'd think and Actually" },
+    { keys: [], arrows: true, action: 'Move the mic; hold Shift for bigger steps' },
+    { keys: [KEYS.cinematic], action: 'Cinematic camera' },
+    { keys: ['R'], action: 'Reset the experiment' },
+    { keys: ['Shift', 'R'], action: 'Full reset' },
+    { keys: [KEYS.sound], action: 'Sound on or off' },
+    { keys: [KEYS.help, '?'], action: 'Open help' },
+    { keys: [KEYS.hide], action: 'Hide or show the interface' },
+    { keys: ['Esc'], action: 'Close help or show the interface' },
+    { keys: ['W', 'A', 'S', 'D'], action: 'Move the camera' },
+    { keys: ['Q', 'E'], action: 'Orbit the camera' },
+    { keys: ['Drag'], action: 'Orbit, or move the mic or the speaker' },
+    { keys: ['Right-drag'], action: 'Pan' },
+    { keys: ['Wheel'], action: 'Zoom, or pinch on a touch screen' },
+  ],
+} as const;
+
+// One sentence per settled change; {name} fills from the reading.
+export const ANNOUNCE = {
+  belief: "You'd think view: the level only falls with distance from the speaker.",
+  physics: 'Actually view: {axis} mode {indices} at {frequency} Hz{speaker}.',
+  mode: '{Axis} mode {indices} at {frequency} Hz{speaker}.',
+  speakerOnNode: ', with the speaker on its node',
+  speaker: "The speaker is on a node, so it can't drive this mode.",
+  node: 'The mic is in a node band, at {level} dB.',
+  antinode: 'The mic is in an antinode band, at {level} dB.',
+  axes: { length: 'length', width: 'width', height: 'height' },
 } as const;

@@ -30,7 +30,12 @@ function latinRanges(): [number, number][] {
 }
 
 const all = strings(copy);
-const prose = strings({ ...copy, KEYS: undefined });
+// Key names and source titles are names, not quantities.
+const prose = strings({
+  ...copy,
+  KEYS: undefined,
+  HELP: { ...copy.HELP, keys: copy.HELP.keys.map(row => row.action), sources: copy.HELP.sources.map(source => source.href) },
+});
 
 describe('copy', () => {
   it('has no em dashes', () => {
@@ -47,6 +52,16 @@ describe('copy', () => {
     expect(copy.HOOK.actually).toMatch(/^Actually, .+\.$/);
     expect(copy.HOOK.actually.split(/\s+/).length).toBeLessThan(12);
     expect(copy.PAGE.description).toBe(`${copy.HOOK.youdThink} ${copy.HOOK.actually}`);
+  });
+
+  it('gives help five steps that end with the speaker break, and every simplification the lab makes', () => {
+    expect(copy.HELP.steps).toHaveLength(5);
+    expect(copy.HELP.steps.at(-1)).toMatch(/^Break it: .*speaker/);
+    const simplified = copy.HELP.simplified.join(' ');
+    expect(simplified).toMatch(/cutaway is only for viewing/);
+    expect(simplified).toMatch(/closed rigid box/);
+    expect(simplified).toMatch(/brightness is a display ramp/);
+    expect(simplified).toMatch(/contours carry the true level/);
   });
 
   it('only uses glyphs the bundled latin subsets cover', () => {
