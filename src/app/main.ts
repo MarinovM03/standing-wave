@@ -1,5 +1,6 @@
 import { Stage } from '../scene/stage';
 import type { ScreenRect } from '../scene/anchors';
+import type { DragTarget } from '../scene/pointer';
 import { COORDINATE } from '../model/room';
 import { antinodePlanes, coupling, getNearestMode, halfWavelength, nodePlanes, relativeDb, sampleField, wavelength, type Mode } from '../model/acoustics';
 import { createActions } from '../ui/actions';
@@ -22,6 +23,7 @@ const CLEARANCE = 8;
 let state: LabState = INITIAL_STATE;
 let audioStatus: AudioStatus = 'off';
 let toneAnnounced = false;
+let dragging: DragTarget | null = null;
 
 const title = adoptTitleBlock();
 const toast = createToast();
@@ -45,7 +47,7 @@ const dock = createDock({
 const layout = createLayout(document.querySelector<HTMLDivElement>('#app')!, {
   title: title.element, actions: actions.element, dock: dock.element, toast: toast.element, dialog: help.element,
 });
-const announcer = createAnnouncer(layout.stage);
+const announcer = createAnnouncer(layout.stage, () => dragging !== null || dock.isScrubbing());
 const callouts = createCallouts(layout.scene);
 const audio = new NoteAudio();
 const events = new AbortController();
@@ -78,7 +80,7 @@ function update() {
   dock.render({ view: state.view, frequency: state.frequency, micHeight: state.mic.y, playing: state.playing, preset: activePreset(state.frequency) });
   actions.render({ sound: state.sound, soundPending: audioStatus === 'starting', cinematic: state.cinematic });
   title.setReadings({ view: state.view, frequency: state.frequency, wavelength: wavelength(state.frequency), indices: mode.indices, db });
-  announcer.update(state.view, mode, amplitude);
+  announcer.update({ view: state.view, mode, mic: state.mic, speaker: state.speaker, db });
   callouts.setReadings(state.view, calloutReadings(mode, amplitude));
   audio.update(state.frequency, amplitude);
   room?.setState(stageState(amplitude));
@@ -110,6 +112,7 @@ function reset(full: boolean) {
   if (full) {
     layout.setHidden(state.uiHidden);
     help.close();
+    dock.setSheet('peek');
   }
   toast.show(full ? TOASTS.fullReset : TOASTS.reset);
 }
@@ -145,9 +148,10 @@ function keyFocus(target: EventTarget | null): KeyFocus {
   return 'other';
 }
 
+// Controls come before the title: where the room can't clear them all, it may sit under the text, never under a control.
 function interfaceRects(): ScreenRect[] {
   const origin = layout.scene.getBoundingClientRect();
-  return [title.element, dock.element, actions.element].flatMap(target => {
+  return [dock.element, actions.element, title.element].flatMap(target => {
     const rect = target.getBoundingClientRect();
     if (rect.width <= 1 || rect.height <= 1) return [];
     return [{
@@ -199,7 +203,10 @@ try {
   room = new Stage(layout.scene, stageState(sampleField(state.mic, state.frequency, state.view, undefined, state.speaker)), {
     onMicMove: position => dispatch({ type: 'moveMic', position }),
     onSpeakerMove: position => dispatch({ type: 'moveSpeaker', position }),
-    onDragChange: target => layout.setDragging(target),
+    onDragChange: target => {
+      dragging = target;
+      layout.setDragging(target);
+    },
     onCameraInteraction: () => {
       if (state.cinematic) dispatch({ type: 'leaveCinematic' });
     },

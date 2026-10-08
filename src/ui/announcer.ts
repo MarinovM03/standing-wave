@@ -1,45 +1,110 @@
-import type { Mode, ViewMode } from '../model/acoustics';
-import { STAGE } from './copy';
+import { coupling, type Mode, type ViewMode } from '../model/acoustics';
+import type { Position } from '../model/room';
+import { ANNOUNCE, STAGE } from './copy';
 import { element } from './dom';
+import { printed, settled } from './title';
 
-const SETTLE_MS = 180;
+export type Band = 'node' | 'between' | 'antinode';
 
-function pressure(amplitude: number) {
-  return amplitude < 0.13 ? 'quiet' : amplitude > 0.72 ? 'hot' : 'mid';
+export type Reading = Readonly<{
+  view: ViewMode;
+  mode: Mode;
+  mic: Readonly<Position>;
+  speaker: Readonly<Position>;
+  db: number;
+}>;
+
+// Long enough to outlast a key's repeat delay, so a held key settles once.
+const SETTLE_MS = 600;
+// The mode shape at −18 dB and −3 dB, the 6 dB contours' third line and the half-power point.
+const NODE_BAND = 0.125;
+const ANTINODE_BAND = 0.708;
+
+export function band(shape: number): Band {
+  return shape < NODE_BAND ? 'node' : shape > ANTINODE_BAND ? 'antinode' : 'between';
 }
 
-function listener(view: ViewMode, amplitude: number) {
-  const level = pressure(amplitude);
-  if (view === 'belief') return level === 'quiet' ? 'far from source' : level === 'hot' ? 'near source' : 'distance falloff';
-  return level === 'quiet' ? 'quiet spot' : level === 'hot' ? 'pressure peak' : 'between peaks';
+type Settled = Readonly<{ view: ViewMode; mode: Mode; band: Band; speakerOnNode: boolean; speaker: string; db: number }>;
+
+function settle(reading: Reading): Settled {
+  const { view, mode, mic, speaker, db } = reading;
+  return {
+    view,
+    mode,
+    band: band(coupling(mic, mode)),
+    speakerOnNode: coupling(speaker, mode) < NODE_BAND,
+    speaker: `${speaker.x} ${speaker.y} ${speaker.z}`,
+    db,
+  };
 }
 
-export function createAnnouncer(container: HTMLElement) {
+const modeKey = (mode: Mode) => mode.indices.join(',');
+
+function same(a: Settled, b: Settled): boolean {
+  return a.view === b.view && modeKey(a.mode) === modeKey(b.mode) && a.band === b.band && a.speakerOnNode === b.speakerOnNode && a.speaker === b.speaker;
+}
+
+function fill(template: string, values: Readonly<Record<string, string>>): string {
+  return template.replace(/\{(\w+)\}/g, (_, name: string) => values[name] ?? '');
+}
+
+function modeValues(now: Settled) {
+  const axis = ANNOUNCE.axes[now.mode.axis];
+  return {
+    axis,
+    Axis: axis[0].toUpperCase() + axis.slice(1),
+    indices: `(${now.mode.indices.join(', ')})`,
+    frequency: now.mode.frequency.toFixed(1),
+    speaker: now.speakerOnNode ? ANNOUNCE.speakerOnNode : '',
+  };
+}
+
+// The most telling change wins: the view, then the mode, then the speaker, then the mic.
+export function announcement(before: Reading, after: Reading): string | null {
+  const was = settle(before);
+  const now = settle(after);
+  if (now.view !== was.view) return now.view === 'belief' ? ANNOUNCE.belief : fill(ANNOUNCE.physics, modeValues(now));
+  if (now.view === 'belief') return null;
+  if (modeKey(now.mode) !== modeKey(was.mode)) return fill(ANNOUNCE.mode, modeValues(now));
+  if (now.speakerOnNode && !was.speakerOnNode && now.speaker !== was.speaker) return ANNOUNCE.speaker;
+  if (now.band !== was.band && now.band !== 'between') return fill(ANNOUNCE[now.band], { level: printed(settled(now.db, 1)) });
+  return null;
+}
+
+export function createAnnouncer(container: HTMLElement, busy: () => boolean) {
   const description = element('p', { id: 'room-view', class: 'sr-only' });
-  const summary = element('p', { id: 'pressure-summary', class: 'sr-only', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' });
-  container.append(description, summary);
-  let key = '';
+  const region = element('p', { id: 'announcer', class: 'sr-only', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' });
+  container.append(description, region);
+  let announced: Reading | undefined;
+  let latest: Reading | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
-  function update(view: ViewMode, mode: Mode, amplitude: number) {
-    if (description.textContent !== STAGE.view[view]) description.textContent = STAGE.view[view];
-    const nextKey = `${view}:${view === 'physics' ? mode.indices.join(',') : ''}:${pressure(amplitude)}`;
-    if (nextKey === key) return;
-    key = nextKey;
+  function speak() {
+    if (!announced || !latest) return;
+    if (busy()) {
+      timer = setTimeout(speak, SETTLE_MS);
+      return;
+    }
+    const text = announcement(announced, latest);
+    announced = latest;
+    if (text) region.textContent = text;
+  }
+
+  function update(reading: Reading) {
+    if (description.textContent !== STAGE.view[reading.view]) description.textContent = STAGE.view[reading.view];
+    latest = reading;
+    if (!announced) {
+      announced = reading;
+      return;
+    }
     clearTimeout(timer);
-    const text = view === 'belief'
-      ? `Speaker only. Level falls with distance. Listener: ${listener(view, amplitude)}.`
-      : `Room interference. Nearest ${mode.axis} mode (${mode.indices.join(', ')}), ${mode.frequency.toFixed(1)} hertz. Listener: ${listener(view, amplitude)}.`;
-    // Announce settled changes of meaning, not every sample during a drag or scrub.
-    timer = setTimeout(() => {
-      if (summary.textContent !== text) summary.textContent = text;
-    }, SETTLE_MS);
+    if (!same(settle(announced), settle(reading))) timer = setTimeout(speak, SETTLE_MS);
   }
 
   function dispose() {
     clearTimeout(timer);
     description.remove();
-    summary.remove();
+    region.remove();
   }
 
   return { update, dispose };
